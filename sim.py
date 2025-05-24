@@ -53,3 +53,16 @@ def test_modulus_of_continuity_1(
     assert mod == pytest.approx(expected, abs=0.01)
     assert abs(fun(x0) - fun(x1)) == pytest.approx(mod)
     assert np.max(np.abs(x0 - x1)) == pytest.approx(z)
+
+
+def plot_for_modulus() -> None:
+    t = 1.5
+    zs = np.linspace(0, 0.1, 10)
+    mods = [
+        measure_modulus_of_continuity_from_max_norm(
+            oscillator(t), osc_domain, 50, 10, z
+        )[2]
+        for z in zs
+    ]
+    lips = [2 * np.pi * z * max(t, 1) for z in zs]
+    # TODO complete

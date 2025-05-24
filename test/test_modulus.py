@@ -102,9 +102,7 @@ def test_modulus_of_continuity_from_max_norm(
     fun: Callable[[npt.NDArray], float], z: float, expected: float
 ) -> None:
     domain = Domain(Bounds(0, 1))
-    mod, x0, x1 = measure_modulus_of_continuity_from_max_norm(
-        fun, domain, 100, 10, z
-    )
+    mod, x0, x1 = measure_modulus_of_continuity_from_max_norm(fun, domain, 100, 10, z)
     assert mod == pytest.approx(expected)
     assert abs(fun(x0) - fun(x1)) == pytest.approx(mod)
     assert np.max(np.abs(x0 - x1)) == pytest.approx(z)
