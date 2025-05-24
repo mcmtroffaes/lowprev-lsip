@@ -4,3 +4,4 @@
 *.log
 *.pdf
 .sconsign.dblite
+/.venv*/

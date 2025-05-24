@@ -1,12 +1,11 @@
-import itertools
-import math
-from collections.abc import Callable, Sequence, Iterable
-import numpy as np
 import logging
+import math
+from collections.abc import Callable, Iterable, Sequence
 
+import numpy as np
+import numpy.typing as npt
 import pytest
 import scipy.optimize
-import numpy.typing as npt
 
 _logger = logging.getLogger("lower_prevision.semi_infinite")
 
@@ -18,7 +17,9 @@ def oscillator(t: float) -> Callable[[Sequence[float]], float]:
     return _
 
 
-osc_bounds = scipy.optimize.Bounds(lb=[1, 0], ub=[2, 2])  # 1 <= x[0] <= 2, 0 <= x[1] <= 2
+osc_bounds = scipy.optimize.Bounds(
+    lb=[1, 0], ub=[2, 2]
+)  # 1 <= x[0] <= 2, 0 <= x[1] <= 2
 osc_constraints = [scipy.optimize.LinearConstraint(A=[[-1, 1]], lb=[0])]  # x[1] <= x[0]
 
 
@@ -113,25 +114,30 @@ def modulus_of_continuity_2(
 ):
     def _values() -> Iterable[float]:
         for x0 in grid:
-            for x10 in np.linspace(max(1.0, x0[0] - z), min(2.0, x0[0] + z),10):
-                for x11 in np.linspace(max(0.0, x0[1] - z), min(2.0, x0[1] + z), 10):
+            for x10 in np.linspace(
+                max(1.0, x0[0] - z / 2), min(2.0, x0[0] + z / 2), 10
+            ):
+                for x11 in np.linspace(
+                    max(0.0, x0[1] - z / 2), min(2.0, x0[1] + z / 2), 10
+                ):
                     if x11 <= x10:
-                        yield math.fabs(fun(x0) - fun([x10, x11])), x0, [x10, x11]
+                        yield math.fabs(fun(x0) - fun([x10, x11]))
 
     return max(_values())
 
 
 def test_modulus_of_continuity() -> None:
     grid: Sequence[Sequence[float]] = [
-        [x1, x2] for x1 in np.linspace(1, 2, 20)
+        [x1, x2]
+        for x1 in np.linspace(1, 2, 20)
         for x2 in np.linspace(0, 2, 20)
         if x2 <= x1
     ]
     for t in [3, 6, 9, 12]:
         for z in [0.01, 0.1]:
-            for x0 in [[1.1,0.1], [1.1,0.9],[1.9,1.9],[1.9,0.1]]:
-                x0_1 = np.array(x0) - np.array([z/2, z/2])
-                x0_2 = np.array(x0) + np.array([z/2, z/2])
+            for x0 in [[1.1, 0.1], [1.1, 0.9], [1.9, 1.9], [1.9, 0.1]]:
+                x0_1 = np.array(x0) - np.array([z / 2, z / 2])
+                x0_2 = np.array(x0) + np.array([z / 2, z / 2])
                 result = modulus_of_continuity(
                     z, oscillator(t), x0_1, x0_2, osc_bounds, osc_constraints
                 )
