@@ -49,10 +49,8 @@ def modulus_of_continuity_at(
     fun: Callable[[npt.NDArray], float],
     bounds: Bounds,
     x: npt.NDArray,
-    z: float,
 ) -> float:
-    bounds2 = get_neighbourhood_bounds(bounds, x, z)
-    return -min_fun(lambda y: -abs(fun(x) - fun(y)), bounds2)
+    return -min_fun(lambda y: -abs(fun(x) - fun(y)), bounds)
 
 
 def modulus_of_continuity(
@@ -66,7 +64,9 @@ def modulus_of_continuity(
     min_fun_inner = min_fun_inner if min_fun_inner is not None else min_fun_minimize
 
     def fun2(x: npt.NDArray) -> float:
-        return -modulus_of_continuity_at(min_fun_inner, fun, bounds, x, z)
+        return -modulus_of_continuity_at(
+            min_fun_inner, fun, get_neighbourhood_bounds(bounds, x, z), x
+        )
 
     return -min_fun(fun2, bounds)
 
