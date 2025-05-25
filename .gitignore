@@ -4,6 +4,6 @@
 *.log
 *.pdf
 .sconsign.dblite
-/.venv*/
+/*venv*/
 *.egg-info/
 *.pyc
