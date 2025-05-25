@@ -6,6 +6,10 @@ import numpy.typing as npt
 import pytest
 from scipy.optimize import Bounds
 
+from lowprev_lsip.linear_program import (
+    get_linear_program,
+    solve_linear_program,
+)
 from lowprev_lsip.modulus import (
     lipschitz_constant,
     modulus_of_continuity,
@@ -77,14 +81,41 @@ def plot_for_modulus(t: float, zs: npt.NDArray) -> None:
     ]
     lip = lipschitz_constant(fun_grad, osc_bounds, min_fun=min_fun_brute)
     lips = [lip * z for z in zs]
-    plt.plot(zs, mods, "C0", label=r"$\xi_{f_t(X_1,X_2)}(z)$", ylim=(0, 2))
-    plt.plot(zs, lips, "C1", label=r"$z M_{f_t(X_1,X_2)}$", ylim=(0, 2))
+    plt.ylim(0, 2.1)
+    plt.plot(zs, mods, "C0", linestyle="-", label=r"$\xi_{f_t(X_1,X_2)}(z)$")
+    plt.plot(zs, lips, "C1", linestyle="--", label=r"$z M_{f_t(X_1,X_2)}$")
     plt.legend()
     plt.title(f"Modulus of continuity of $f_t(X_1,X_2)$ for $t={t}$")
     plt.show()
 
 
+def get_osc_lin_prog(t: float, num: int) -> tuple[float, float]:
+    def y(omega: npt.NDArray) -> float:
+        return oscillator(t, omega[0], omega[1])
+
+    def y_neg(omega: npt.NDArray) -> float:
+        return -oscillator(t, omega[0], omega[1])
+
+    def x1(omega: npt.NDArray) -> float:
+        return omega[0]
+
+    def x2(omega: npt.NDArray) -> float:
+        return omega[1]
+
+    grid = np.meshgrid(
+        *[np.linspace(lb, ub, num) for lb, ub in zip(osc_bounds.lb, osc_bounds.ub)]
+    )
+    points = np.vstack([coord.ravel() for coord in grid]).T
+    low_prev = [(x1, 1.1, 1.2), (x2, 0.05, 0.07)]
+    lp1 = get_linear_program(y, low_prev, points)
+    lp2 = get_linear_program(y_neg, low_prev, points)
+    return solve_linear_program(lp1), -solve_linear_program(lp2)
+
+
 if __name__ == "__main__":
+    for t in np.linspace(2, 5, 20):
+        print(t, get_osc_lin_prog(t=t, num=100))
+    exit(0)
     plot_oscillator(t=2, num=30, cmap="plasma")
     plot_oscillator(t=10, num=200, cmap="plasma")
     plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
