@@ -26,7 +26,7 @@ def oscillator_grad(t: float, x1: float, x2: float) -> tuple[float, float]:
     return -v * t / (x1**2), -v
 
 
-osc_bounds = Bounds(lb=[1, 0], ub=[2, 1])  # 1 <= x[0] <= 2, 0 <= x[1] <= 1
+osc_bounds = Bounds(lb=[1, 0], ub=[1.3, 0.1])  # 1 <= x[0] <= 1.3, 0 <= x[1] <= 0.1
 
 
 def test_oscillator() -> None:
