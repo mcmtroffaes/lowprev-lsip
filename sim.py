@@ -115,8 +115,7 @@ def get_osc_lin_prog(t: float, num: int) -> tuple[float, float]:
 if __name__ == "__main__":
     for t in np.linspace(2, 5, 20):
         print(t, get_osc_lin_prog(t=t, num=100))
-    exit(0)
     plot_oscillator(t=2, num=30, cmap="plasma")
-    plot_oscillator(t=10, num=200, cmap="plasma")
+    plot_oscillator(t=5, num=200, cmap="plasma")
     plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
-    plot_for_modulus(t=10, zs=np.linspace(0, 0.1, 30))
+    plot_for_modulus(t=5, zs=np.linspace(0, 0.1, 30))
