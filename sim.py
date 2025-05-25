@@ -6,7 +6,7 @@ import numpy.typing as npt
 import pytest
 from scipy.optimize import Bounds
 
-from lowprev_lsip.modulus import modulus_of_continuity
+from lowprev_lsip.modulus import min_fun_brute, modulus_of_continuity
 
 
 def oscillator(t: float, x1: float, x2: float) -> float:
@@ -54,7 +54,7 @@ def test_modulus_of_continuity(t: float, z: float, expected: float) -> None:
     def fun(x: npt.NDArray) -> float:
         return oscillator(t, x[0], x[1])
 
-    mod2 = modulus_of_continuity(fun, osc_bounds, z)
+    mod2 = modulus_of_continuity(fun, osc_bounds, z, min_fun=min_fun_brute)
     assert mod2 == pytest.approx(expected, abs=0.01)
 
 
