@@ -9,7 +9,7 @@ from scipy.optimize import Bounds
 from lowprev_lsip.modulus import (
     measure_modulus_of_continuity_2,
     measure_modulus_of_continuity_from_max_norm,
-    minimize_brute,
+    min_fun_brute,
 )
 
 
@@ -64,7 +64,7 @@ def test_modulus_of_continuity_1(t: float, z: float, expected: float) -> None:
     assert mod == pytest.approx(expected, abs=0.01)
     assert abs(fun(x0) - fun(x1)) == pytest.approx(mod)
     assert np.max(np.abs(x0 - x1)) == pytest.approx(z)
-    mod2 = measure_modulus_of_continuity_2(minimize_brute, fun, osc_bounds, z)
+    mod2 = measure_modulus_of_continuity_2(min_fun_brute, fun, osc_bounds, z)
     assert mod2 == pytest.approx(expected, abs=0.01)
 
 

@@ -1,5 +1,5 @@
 from collections.abc import Callable, Iterable, Sequence
-from typing import TypeVar
+from typing import Protocol, TypeVar
 
 import numpy as np
 import numpy.typing as npt
@@ -105,35 +105,44 @@ def measure_modulus_of_continuity_from_max_norm(
     )
 
 
+class MinFun(Protocol):
+    def __call__(
+        self, fun: Callable[[npt.NDArray], float], bounds: Bounds
+    ) -> float: ...
+
+
 def modulus_of_continuity_at_2(
-    minimize: Callable[[Callable[[npt.NDArray], float], Bounds], float],
+    min_fun: MinFun,
     fun: Callable[[npt.NDArray], float],
     bounds: Bounds,
     x: npt.NDArray,
     z: float,
 ) -> float:
     bounds2 = get_neighbourhood_bounds_from_max_norm(bounds, x, z)
-    return -minimize(lambda y: -abs(fun(x) - fun(y)), bounds2)
+    return -min_fun(lambda y: -abs(fun(x) - fun(y)), bounds2)
 
 
 def measure_modulus_of_continuity_2(
-    minimize: Callable[[Callable[[npt.NDArray], float], Bounds], float],
+    min_fun: MinFun,
     fun: Callable[[npt.NDArray], float],
     bounds: Bounds,
     z: float,
+    min_fun_inner: MinFun | None = None,
 ) -> float:
     def fun2(x: npt.NDArray) -> float:
-        return -modulus_of_continuity_at_2(minimize, fun, bounds, x, z)
+        return -modulus_of_continuity_at_2(
+            min_fun if min_fun_inner is None else min_fun_inner, fun, bounds, x, z
+        )
 
-    return -minimize(fun2, bounds)
+    return -min_fun(fun2, bounds)
 
 
-def minimize_brute(fun: Callable[[npt.NDArray], float], bounds: Bounds) -> float:
+def min_fun_brute(fun: Callable[[npt.NDArray], float], bounds: Bounds, ns=20) -> float:
     # note: scipy-stubs has too limited type checking for finish
     def finish(fun2, x0, args, **kwargs):
         return minimize(fun2, x0, args=args, bounds=bounds, **kwargs)
 
-    x_opt, val_opt, _, _ = brute(
-        fun, tuple(zip(bounds.lb, bounds.ub)), full_output=True, finish=finish
+    _, val_opt, _, _ = brute(
+        fun, tuple(zip(bounds.lb, bounds.ub)), Ns=ns, full_output=True, finish=finish
     )
     return val_opt

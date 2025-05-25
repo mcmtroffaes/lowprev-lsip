@@ -11,7 +11,7 @@ from lowprev_lsip.modulus import (
     measure_modulus_of_continuity_2,
     measure_modulus_of_continuity_from_max_norm,
     measure_modulus_of_continuity_from_metric,
-    minimize_brute,
+    min_fun_brute,
 )
 
 
@@ -110,5 +110,5 @@ def test_modulus_of_continuity_2(
     fun: Callable[[npt.NDArray], float], z: float, expected: float
 ) -> None:
     bounds = Bounds(0, 1)
-    mod = measure_modulus_of_continuity_2(minimize_brute, fun, bounds, z)
+    mod = measure_modulus_of_continuity_2(min_fun_brute, fun, bounds, z)
     assert mod == pytest.approx(expected)
