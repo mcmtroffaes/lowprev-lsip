@@ -8,10 +8,10 @@ from scipy.optimize import Bounds
 from lowprev_lsip.modulus import (
     get_neighbourhood_bounds,
     lipschitz_constant,
-    min_fun_brute,
     modulus_of_continuity,
     modulus_of_continuity_slow,
 )
+from lowprev_lsip.optimize import min_fun_brute
 
 
 def test_get_neighbourhood_bounds() -> None:

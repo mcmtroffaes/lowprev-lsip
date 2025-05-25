@@ -8,9 +8,9 @@ from scipy.optimize import Bounds
 
 from lowprev_lsip.modulus import (
     lipschitz_constant,
-    min_fun_brute,
     modulus_of_continuity,
 )
+from lowprev_lsip.optimize import min_fun_brute
 
 
 def oscillator(t: float, x1: float, x2: float) -> float:
@@ -77,15 +77,15 @@ def plot_for_modulus(t: float, zs: npt.NDArray) -> None:
     ]
     lip = lipschitz_constant(fun_grad, osc_bounds, min_fun=min_fun_brute)
     lips = [lip * z for z in zs]
-    plt.plot(zs, mods, "C0", label=r"$\xi_{f_t(X_1,X_2)}(z)$")
-    plt.plot(zs, lips, "C1", label=r"$z M_{f_t(X_1,X_2)}$")
+    plt.plot(zs, mods, "C0", label=r"$\xi_{f_t(X_1,X_2)}(z)$", ylim=(0, 2))
+    plt.plot(zs, lips, "C1", label=r"$z M_{f_t(X_1,X_2)}$", ylim=(0, 2))
     plt.legend()
     plt.title(f"Modulus of continuity of $f_t(X_1,X_2)$ for $t={t}$")
     plt.show()
 
 
 if __name__ == "__main__":
-    # plot_oscillator(t=2, num=30, cmap="plasma")
-    # plot_oscillator(t=10, num=200, cmap="plasma")
+    plot_oscillator(t=2, num=30, cmap="plasma")
+    plot_oscillator(t=10, num=200, cmap="plasma")
     plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
     plot_for_modulus(t=10, zs=np.linspace(0, 0.1, 30))
