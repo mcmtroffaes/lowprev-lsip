@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 
 import numpy as np
 import numpy.typing as npt
@@ -6,109 +6,43 @@ import pytest
 from scipy.optimize import Bounds
 
 from lowprev_lsip.modulus import (
-    get_neighbourhood_from_max_norm,
-    get_points,
-    measure_modulus_of_continuity_2,
-    measure_modulus_of_continuity_from_max_norm,
-    measure_modulus_of_continuity_from_metric,
+    get_neighbourhood_bounds,
     min_fun_brute,
+    modulus_of_continuity,
+    modulus_of_continuity_slow,
 )
 
 
-def assert_points_equal(
-    actual: Sequence[npt.NDArray], expected: Sequence[Sequence[float]]
-) -> None:
-    assert len(actual) == len(expected)
-    for x, y in zip(actual, expected):
-        assert x == pytest.approx(y)
-
-
-def test_get_points_1() -> None:
-    assert_points_equal(
-        list(get_points(3, Bounds([-1, 0], [2, 2]))),
-        [
-            [-1, 0],
-            [-1, 1],
-            [-1, 2],
-            [0.5, 0],
-            [0.5, 1],
-            [0.5, 2],
-            [2, 0],
-            [2, 1],
-            [2, 2],
-        ],
-    )
-
-
-def test_get_neighbourhood_from_max_norm() -> None:
+def test_get_neighbourhood_bounds() -> None:
     # -1 <= x <= 2, 0 <= y <= 2
     bounds = Bounds([-1, 0], [2, 2])
-    xs = list(get_neighbourhood_from_max_norm(3, bounds, 0.2)(np.array([0.1, 0.1])))
-    assert_points_equal(
-        xs,
-        [
-            [-0.1, 0.0],
-            [-0.1, 0.15],
-            [-0.1, 0.3],
-            [0.1, 0.0],
-            [0.1, 0.15],
-            [0.1, 0.3],
-            [0.3, 0.0],
-            [0.3, 0.15],
-            [0.3, 0.3],
-        ],
-    )
+    bounds2 = get_neighbourhood_bounds(bounds, np.array([0.1, 0.1]), 0.2)
+    assert bounds2.lb == pytest.approx([-0.1, 0])
+    assert bounds2.ub == pytest.approx([0.3, 0.3])
 
 
 @pytest.mark.parametrize(
     "fun,z,expected",
     [
-        (lambda x: x, 0.1, 0.1),
-        (lambda x: x**2, 0.2, 1 - 0.8**2),
-        (lambda x: -2 * x, 0.3, 0.6),
+        (lambda x: x[0], 0.1, 0.1),
+        (lambda x: x[0] ** 2, 0.2, 1 - 0.8**2),
+        (lambda x: -2 * x[0], 0.3, 0.6),
     ],
 )
-def test_modulus_of_continuity_from_metric(
-    fun: Callable[[float], float], z: float, expected: float
+def test_modulus_of_continuity(
+    fun: Callable[[npt.NDArray], float], z: float, expected: float
 ) -> None:
-    points = [x for x in np.linspace(0, 1, 100)]
-    mod, x0, x1 = measure_modulus_of_continuity_from_metric(
-        fun, lambda x, y: abs(x - y), points, z
+    mod, x0, x1 = modulus_of_continuity_slow(
+        fun, [np.array([x]) for x in np.linspace(0, 1, 100)], z
     )
     assert mod == pytest.approx(expected, rel=0.1)  # large error due to poor grid
     assert abs(fun(x0) - fun(x1)) == pytest.approx(mod)  # should be exact
-    assert np.max(np.abs(x0 - x1)) == pytest.approx(z, abs=0.01)  # 100 points, so 1/100
-
-
-@pytest.mark.parametrize(
-    "fun,z,expected",
-    [
-        (lambda x: x[0], 0.1, 0.1),
-        (lambda x: x[0] ** 2, 0.2, 1 - 0.8**2),
-        (lambda x: -2 * x[0], 0.3, 0.6),
-    ],
-)
-def test_modulus_of_continuity_from_max_norm(
-    fun: Callable[[npt.NDArray], float], z: float, expected: float
-) -> None:
-    bounds = Bounds(0, 1)
-    mod, x0, x1 = measure_modulus_of_continuity_from_max_norm(fun, bounds, 100, 10, z)
+    assert abs(x0 - x1) == pytest.approx(z, abs=0.01)  # 100 points, so 1/100
+    mod = modulus_of_continuity(fun, Bounds(0, 1), z)
     assert mod == pytest.approx(expected)
-    assert abs(fun(x0) - fun(x1)) == pytest.approx(mod)
-    assert np.max(np.abs(x0 - x1)) == pytest.approx(z)
-
-
-@pytest.mark.parametrize(
-    "fun,z,expected",
-    [
-        (lambda x: x[0], 0.1, 0.1),
-        (lambda x: x[0] ** 2, 0.2, 1 - 0.8**2),
-        (lambda x: -2 * x[0], 0.3, 0.6),
-    ],
-)
-def test_modulus_of_continuity_2(
-    fun: Callable[[npt.NDArray], float], z: float, expected: float
-) -> None:
-    bounds = Bounds(0, 1)
-    mod = measure_modulus_of_continuity_2(min_fun_brute, fun, bounds, z)
-    assert mod == pytest.approx(expected)
+    mod2 = modulus_of_continuity(fun, Bounds(0, 1), z, min_fun=min_fun_brute)
+    assert mod2 == pytest.approx(expected)
+    mod3 = modulus_of_continuity(
+        fun, Bounds(0, 1), z, min_fun=min_fun_brute, min_fun_inner=min_fun_brute
+    )
+    assert mod3 == pytest.approx(expected)

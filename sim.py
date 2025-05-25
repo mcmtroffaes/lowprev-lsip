@@ -6,11 +6,7 @@ import numpy.typing as npt
 import pytest
 from scipy.optimize import Bounds
 
-from lowprev_lsip.modulus import (
-    measure_modulus_of_continuity_2,
-    measure_modulus_of_continuity_from_max_norm,
-    min_fun_brute,
-)
+from lowprev_lsip.modulus import modulus_of_continuity
 
 
 def oscillator(t: float, x1: float, x2: float) -> float:
@@ -54,17 +50,11 @@ def plot_oscillator(t: float) -> None:
         (2.2, 0.2, 2),
     ],
 )
-def test_modulus_of_continuity_1(t: float, z: float, expected: float) -> None:
+def test_modulus_of_continuity(t: float, z: float, expected: float) -> None:
     def fun(x: npt.NDArray) -> float:
         return oscillator(t, x[0], x[1])
 
-    mod, x0, x1 = measure_modulus_of_continuity_from_max_norm(
-        fun, osc_bounds, 50, 10, z
-    )
-    assert mod == pytest.approx(expected, abs=0.01)
-    assert abs(fun(x0) - fun(x1)) == pytest.approx(mod)
-    assert np.max(np.abs(x0 - x1)) == pytest.approx(z)
-    mod2 = measure_modulus_of_continuity_2(min_fun_brute, fun, osc_bounds, z)
+    mod2 = modulus_of_continuity(fun, osc_bounds, z)
     assert mod2 == pytest.approx(expected, abs=0.01)
 
 
@@ -75,10 +65,7 @@ def plot_for_modulus() -> None:
         return oscillator(t, x[0], x[1])
 
     zs = np.linspace(0, 0.1, 10)
-    mods = [
-        measure_modulus_of_continuity_from_max_norm(fun, osc_bounds, 50, 10, z)[2]
-        for z in zs
-    ]
+    mods = [modulus_of_continuity(fun, osc_bounds, z) for z in zs]
     lips = [2 * np.pi * z * max(t, 1) for z in zs]
     # TODO complete
 
