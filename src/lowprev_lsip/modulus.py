@@ -71,6 +71,22 @@ def modulus_of_continuity(
     return -min_fun(fun2, bounds)
 
 
+def lipschitz_constant(
+    fun_grad: Callable[[npt.NDArray], npt.NDArray],
+    bounds: Bounds,
+    min_fun: MinFun | None = None,
+) -> float:
+    """Calculate the Lipschitz constant, from the given function gradient.
+    The operator norm is the L1 norm, which is induced by the max norm.
+    """
+    min_fun = min_fun if min_fun is not None else min_fun_minimize
+
+    def fun2(x: npt.NDArray) -> float:
+        return -np.sum(np.abs(fun_grad(x)))
+
+    return -min_fun(fun2, bounds)
+
+
 def min_fun_minimize(fun: Callable[[npt.NDArray], float], bounds: Bounds) -> float:
     """Wrapper around :func:`scipy.optimize.minimize`.
     Suitable for convex functions.

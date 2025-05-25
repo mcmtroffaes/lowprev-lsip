@@ -7,6 +7,7 @@ from scipy.optimize import Bounds
 
 from lowprev_lsip.modulus import (
     get_neighbourhood_bounds,
+    lipschitz_constant,
     min_fun_brute,
     modulus_of_continuity,
     modulus_of_continuity_slow,
@@ -46,3 +47,51 @@ def test_modulus_of_continuity(
         fun, Bounds(0, 1), z, min_fun=min_fun_brute, min_fun_inner=min_fun_brute
     )
     assert mod3 == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "fun,fun_grad,z,expected",
+    [
+        (lambda x: x[0] + 2 * x[1], lambda x: np.array([1, 2]), 0.1, 0.3),
+        (lambda x: -3 * x[0] + x[1], lambda x: np.array([-3, 1]), 0.2, 0.8),
+    ],
+)
+def test_modulus_of_continuity_2(
+    fun: Callable[[npt.NDArray], float],
+    fun_grad: Callable[[npt.NDArray], npt.NDArray],
+    z: float,
+    expected: float,
+) -> None:
+    bounds = Bounds([0, 0], [1, 1])
+    mod = modulus_of_continuity(fun, bounds, z)
+    assert mod == pytest.approx(expected)
+    lip = lipschitz_constant(fun_grad, bounds)
+    assert mod == pytest.approx(lip * z)
+
+
+@pytest.mark.parametrize(
+    "fun,fun_grad,z,exp_mod,exp_lip",
+    [
+        (
+            lambda x: x[0] ** 2 + x[1] ** 2,
+            lambda x: 2 * x,
+            0.1,
+            2 - 0.9**2 - 0.9**2,
+            2 + 2,
+        ),
+    ],
+)
+def test_modulus_of_continuity_3(
+    fun: Callable[[npt.NDArray], float],
+    fun_grad: Callable[[npt.NDArray], npt.NDArray],
+    z: float,
+    exp_mod: float,
+    exp_lip: float,
+) -> None:
+    bounds = Bounds([0, 0], [1, 1])
+    mod = modulus_of_continuity(fun, bounds, z)
+    assert mod == pytest.approx(exp_mod)
+    lip = lipschitz_constant(fun_grad, bounds)
+    assert lip == pytest.approx(exp_lip)
+    # mod <= lip * z
+    assert min([0, lip * z - mod]) == pytest.approx(0)
