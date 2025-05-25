@@ -3,15 +3,15 @@ from collections.abc import Callable, Sequence
 import numpy as np
 import numpy.typing as npt
 import pytest
-from scipy.optimize import Bounds, LinearConstraint
+from scipy.optimize import Bounds
 
 from lowprev_lsip.modulus import (
-    Domain,
     get_neighbourhood_from_max_norm,
     get_points,
+    measure_modulus_of_continuity_2,
     measure_modulus_of_continuity_from_max_norm,
     measure_modulus_of_continuity_from_metric,
-    measure_modulus_of_continuity_from_neighbourhood,
+    minimize_brute,
 )
 
 
@@ -25,7 +25,7 @@ def assert_points_equal(
 
 def test_get_points_1() -> None:
     assert_points_equal(
-        list(get_points(3, Domain(Bounds([-1, 0], [2, 2])))),
+        list(get_points(3, Bounds([-1, 0], [2, 2]))),
         [
             [-1, 0],
             [-1, 1],
@@ -40,34 +40,24 @@ def test_get_points_1() -> None:
     )
 
 
-def test_get_points_2() -> None:
-    domain = Domain(
-        # -1 <= x <= 2, 0 <= y <= 2
-        Bounds([-1, 0], [2, 2]),
-        # 0 <= x - y <= 2
-        LinearConstraint([[1, -1]], [0], [2]),
-    )
-    xs = list(get_points(3, domain))
+def test_get_neighbourhood_from_max_norm() -> None:
+    # -1 <= x <= 2, 0 <= y <= 2
+    bounds = Bounds([-1, 0], [2, 2])
+    xs = list(get_neighbourhood_from_max_norm(3, bounds, 0.2)(np.array([0.1, 0.1])))
     assert_points_equal(
         xs,
         [
-            [0.5, 0],
-            [2, 0],
-            [2, 1],
-            [2, 2],
+            [-0.1, 0.0],
+            [-0.1, 0.15],
+            [-0.1, 0.3],
+            [0.1, 0.0],
+            [0.1, 0.15],
+            [0.1, 0.3],
+            [0.3, 0.0],
+            [0.3, 0.15],
+            [0.3, 0.3],
         ],
     )
-
-
-def test_get_neighbourhood_from_max_norm() -> None:
-    domain = Domain(
-        # -1 <= x <= 2, 0 <= y <= 2
-        Bounds([-1, 0], [2, 2]),
-        # 0 <= x - y <= 2
-        LinearConstraint([[1, -1]], [0], [2]),
-    )
-    xs = list(get_neighbourhood_from_max_norm(3, domain, 0.2)(np.array([0.1, 0.1])))
-    assert_points_equal(xs, [[0.1, 0.0], [0.3, 0.0], [0.3, 0.15], [0.3, 0.3]])
 
 
 @pytest.mark.parametrize(
@@ -101,8 +91,24 @@ def test_modulus_of_continuity_from_metric(
 def test_modulus_of_continuity_from_max_norm(
     fun: Callable[[npt.NDArray], float], z: float, expected: float
 ) -> None:
-    domain = Domain(Bounds(0, 1))
-    mod, x0, x1 = measure_modulus_of_continuity_from_max_norm(fun, domain, 100, 10, z)
+    bounds = Bounds(0, 1)
+    mod, x0, x1 = measure_modulus_of_continuity_from_max_norm(fun, bounds, 100, 10, z)
     assert mod == pytest.approx(expected)
     assert abs(fun(x0) - fun(x1)) == pytest.approx(mod)
     assert np.max(np.abs(x0 - x1)) == pytest.approx(z)
+
+
+@pytest.mark.parametrize(
+    "fun,z,expected",
+    [
+        (lambda x: x[0], 0.1, 0.1),
+        (lambda x: x[0] ** 2, 0.2, 1 - 0.8**2),
+        (lambda x: -2 * x[0], 0.3, 0.6),
+    ],
+)
+def test_modulus_of_continuity_2(
+    fun: Callable[[npt.NDArray], float], z: float, expected: float
+) -> None:
+    bounds = Bounds(0, 1)
+    mod = measure_modulus_of_continuity_2(minimize_brute, fun, bounds, z)
+    assert mod == pytest.approx(expected)

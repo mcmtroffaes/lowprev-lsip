@@ -1,68 +1,87 @@
-import logging
 import math
-from collections.abc import Callable, Sequence
 
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pytest
-from scipy.optimize import Bounds, LinearConstraint
+from scipy.optimize import Bounds
 
 from lowprev_lsip.modulus import (
-    Domain,
+    measure_modulus_of_continuity_2,
     measure_modulus_of_continuity_from_max_norm,
+    minimize_brute,
 )
 
 
-def oscillator(t: float) -> Callable[[npt.NDArray], float]:
-    def _(x: npt.NDArray) -> float:
-        return np.sin(2 * math.pi * (t - x[1]) / x[0])
-
-    return _
+def oscillator(t: float, x1: float, x2: float) -> float:
+    return np.sin(2 * math.pi * (t - x1 * x2) / x1)
 
 
-osc_domain = Domain(
-    Bounds(lb=[1, 0], ub=[2, 2]),  # 1 <= x[0] <= 2, 0 <= x[1] <= 2
-    LinearConstraint(A=[[-1, 1]], lb=[0]),  # x[1] <= x[0]
-)
+osc_bounds = Bounds(lb=[1, 0], ub=[2, 1])  # 1 <= x[0] <= 2, 0 <= x[1] <= 1
 
 
 def test_oscillator() -> None:
-    assert oscillator(3)(np.array([1, 3])) == 0
-    assert oscillator(3)(np.array([1, 5.5])) == pytest.approx(0)
-    assert oscillator(3)(np.array([1, 6])) == pytest.approx(0)
-    assert oscillator(1)(np.array([1, 1.25])) == pytest.approx(-1)
-    assert oscillator(1)(np.array([1, 1.75])) == pytest.approx(1)
-    assert oscillator(1)(np.array([2, 1.5])) == pytest.approx(-1)
-    assert oscillator(1)(np.array([2, 2.5])) == pytest.approx(1)
+    assert oscillator(3, 1, 0) == pytest.approx(0)
+    assert oscillator(3, 1, 0.5) == pytest.approx(0)
+    assert oscillator(3, 1, 1) == pytest.approx(0)
+    assert oscillator(1, 1, 1.25) == pytest.approx(-1)
+    assert oscillator(1, 1, 1.75) == pytest.approx(1)
+    assert oscillator(1, 2, 0.75) == pytest.approx(-1)
+    assert oscillator(1, 2, 1.25) == pytest.approx(1)
+
+
+def plot_oscillator(t: float) -> None:
+    x = np.linspace(osc_bounds.lb[0], osc_bounds.ub[0], 10)
+    y = np.linspace(osc_bounds.lb[1], osc_bounds.ub[1], 10)
+    xx, yy = np.meshgrid(x, y)
+    fun = np.frompyfunc(lambda x1, x2: oscillator(t, x1, x2), 2, 1)
+    zz = np.sin(xx, yy)
+    print(zz)
+    plt.figure()
+    plt.contourf(xx, yy, zz, np.linspace(-1, 1, 5))
+    plt.colorbar()
+    plt.xlabel("$x_1$")
+    plt.ylabel("$x_2$")
+    plt.title(f"$f_t(x_1,x_2)$ for $t={t}$")
+    plt.show()
 
 
 @pytest.mark.parametrize(
-    "fun,z,expected",
+    "t,z,expected",
     [
-        (oscillator(1.8), 0.1, 0.87),
-        (oscillator(2), 0.2, 1.52),
-        (oscillator(2.2), 0.3, 1.93),
+        (1.8, 0.1, 1.47),
+        (2, 0.15, 1.92),
+        (2.2, 0.2, 2),
     ],
 )
-def test_modulus_of_continuity_1(
-    fun: Callable[[npt.NDArray], float], z: float, expected: float
-) -> None:
+def test_modulus_of_continuity_1(t: float, z: float, expected: float) -> None:
+    def fun(x: npt.NDArray) -> float:
+        return oscillator(t, x[0], x[1])
+
     mod, x0, x1 = measure_modulus_of_continuity_from_max_norm(
-        fun, osc_domain, 50, 10, z
+        fun, osc_bounds, 50, 10, z
     )
     assert mod == pytest.approx(expected, abs=0.01)
     assert abs(fun(x0) - fun(x1)) == pytest.approx(mod)
     assert np.max(np.abs(x0 - x1)) == pytest.approx(z)
+    mod2 = measure_modulus_of_continuity_2(minimize_brute, fun, osc_bounds, z)
+    assert mod2 == pytest.approx(expected, abs=0.01)
 
 
 def plot_for_modulus() -> None:
     t = 1.5
+
+    def fun(x: npt.NDArray) -> float:
+        return oscillator(t, x[0], x[1])
+
     zs = np.linspace(0, 0.1, 10)
     mods = [
-        measure_modulus_of_continuity_from_max_norm(
-            oscillator(t), osc_domain, 50, 10, z
-        )[2]
+        measure_modulus_of_continuity_from_max_norm(fun, osc_bounds, 50, 10, z)[2]
         for z in zs
     ]
     lips = [2 * np.pi * z * max(t, 1) for z in zs]
     # TODO complete
+
+
+if __name__ == "__main__":
+    plot_oscillator(1.5)

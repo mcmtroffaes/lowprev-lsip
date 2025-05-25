@@ -29,6 +29,10 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
+dependencies = [
+    "numpy",
+    "scipy",
+]
 
 [tool.mypy]
 plugins = ["numpy.typing.mypy_plugin"]

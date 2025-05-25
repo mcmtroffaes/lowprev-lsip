@@ -5,3 +5,5 @@
 *.pdf
 .sconsign.dblite
 /.venv*/
+*.egg-info/
+*.pyc

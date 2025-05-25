@@ -1,46 +1,23 @@
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass
 from typing import TypeVar
 
 import numpy as np
 import numpy.typing as npt
-from scipy.optimize import Bounds, LinearConstraint
+from scipy.optimize import Bounds, brute, minimize
 
 T = TypeVar("T")
 
 
-@dataclass
-class Domain:
-    bounds: Bounds
-    linear_constraint: LinearConstraint | None = None
-
-
-def _get_points(n: int, bounds: Bounds) -> Iterable[npt.NDArray]:
+def get_points(n: int, bounds: Bounds) -> Iterable[npt.NDArray]:
     points = np.linspace(bounds.lb[-1], bounds.ub[-1], n)
     if len(bounds.lb) == 1:
         return (np.array([x]) for x in points)
     else:
         return (
             np.append(x, y)
-            for x in _get_points(n, Bounds(bounds.lb[:-1], bounds.ub[:-1]))
+            for x in get_points(n, Bounds(bounds.lb[:-1], bounds.ub[:-1]))
             for y in points
         )
-
-
-def get_points(n: int, domain: Domain, tol=1e-6) -> Iterable[npt.NDArray]:
-    def is_feasible(x: npt.NDArray):
-        assert domain.linear_constraint is not None
-        sl: npt.NDArray
-        sb: npt.NDArray
-        sl, sb = domain.linear_constraint.residual(x)
-        return np.min([sl, sb]) >= -tol
-
-    points = _get_points(n, domain.bounds)
-    return (
-        points
-        if domain.linear_constraint is None
-        else (x for x in points if is_feasible(x))
-    )
 
 
 def get_neighbourhood_from_metric(
@@ -55,17 +32,24 @@ def get_neighbourhood_from_metric(
     return _
 
 
+def get_neighbourhood_bounds_from_max_norm(
+    bounds: Bounds,
+    x: npt.NDArray,
+    z: float,
+) -> Bounds:
+    lb = np.max([bounds.lb, x - z], axis=0)
+    ub = np.min([bounds.ub, x + z], axis=0)
+    return Bounds(lb, ub)
+
+
 def get_neighbourhood_from_max_norm(
     n: int,
-    domain: Domain,
+    bounds: Bounds,
     z: float,
-    tol=1e-6,
 ) -> Callable[[npt.NDArray], Iterable[npt.NDArray]]:
     def _(x: npt.NDArray) -> Iterable[npt.NDArray]:
-        lb = np.max([domain.bounds.lb, x - z], axis=0)
-        ub = np.min([domain.bounds.ub, x + z], axis=0)
-        neighbourhood_domain = Domain(Bounds(lb, ub), domain.linear_constraint)
-        return get_points(n, neighbourhood_domain, tol=tol)
+        bounds2 = get_neighbourhood_bounds_from_max_norm(bounds, x, z)
+        return get_points(n, bounds2)
 
     return _
 
@@ -110,13 +94,46 @@ def measure_modulus_of_continuity_from_metric(
 
 def measure_modulus_of_continuity_from_max_norm(
     fun: Callable[[npt.NDArray], float],
-    domain: Domain,
+    bounds: Bounds,
     n_points: int,
     n_neighbourhood: int,
     z: float,
-    tol=1e-6,
 ) -> tuple[float, npt.NDArray, npt.NDArray]:
-    points = list(get_points(n_points, domain, tol))
+    points = list(get_points(n_points, bounds))
     return measure_modulus_of_continuity_from_neighbourhood(
-        fun, get_neighbourhood_from_max_norm(n_neighbourhood, domain, z), points
+        fun, get_neighbourhood_from_max_norm(n_neighbourhood, bounds, z), points
     )
+
+
+def modulus_of_continuity_at_2(
+    minimize: Callable[[Callable[[npt.NDArray], float], Bounds], float],
+    fun: Callable[[npt.NDArray], float],
+    bounds: Bounds,
+    x: npt.NDArray,
+    z: float,
+) -> float:
+    bounds2 = get_neighbourhood_bounds_from_max_norm(bounds, x, z)
+    return -minimize(lambda y: -abs(fun(x) - fun(y)), bounds2)
+
+
+def measure_modulus_of_continuity_2(
+    minimize: Callable[[Callable[[npt.NDArray], float], Bounds], float],
+    fun: Callable[[npt.NDArray], float],
+    bounds: Bounds,
+    z: float,
+) -> float:
+    def fun2(x: npt.NDArray) -> float:
+        return -modulus_of_continuity_at_2(minimize, fun, bounds, x, z)
+
+    return -minimize(fun2, bounds)
+
+
+def minimize_brute(fun: Callable[[npt.NDArray], float], bounds: Bounds) -> float:
+    # note: scipy-stubs has too limited type checking for finish
+    def finish(fun2, x0, args, **kwargs):
+        return minimize(fun2, x0, args=args, bounds=bounds, **kwargs)
+
+    x_opt, val_opt, _, _ = brute(
+        fun, tuple(zip(bounds.lb, bounds.ub)), full_output=True, finish=finish
+    )
+    return val_opt
