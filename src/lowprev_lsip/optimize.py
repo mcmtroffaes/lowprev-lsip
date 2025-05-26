@@ -8,17 +8,22 @@ from scipy.optimize import Bounds, brute, minimize
 class MinFun(Protocol):
     def __call__(
         self, fun: Callable[[npt.NDArray], float], bounds: Bounds
-    ) -> float: ...
+    ) -> tuple[npt.NDArray, float]: ...
 
 
-def min_fun_minimize(fun: Callable[[npt.NDArray], float], bounds: Bounds) -> float:
+def min_fun_minimize(
+    fun: Callable[[npt.NDArray], float], bounds: Bounds
+) -> tuple[npt.NDArray, float]:
     """Wrapper around :func:`scipy.optimize.minimize`.
     Suitable for convex functions.
     """
-    return minimize(fun, 0.5 * (bounds.lb + bounds.ub), bounds=bounds).fun
+    result = minimize(fun, 0.5 * (bounds.lb + bounds.ub), bounds=bounds)
+    return result.x, result.fun
 
 
-def min_fun_brute(fun: Callable[[npt.NDArray], float], bounds: Bounds, ns=20) -> float:
+def min_fun_brute(
+    fun: Callable[[npt.NDArray], float], bounds: Bounds, ns=20
+) -> tuple[npt.NDArray, float]:
     """Wrapper around :func:`scipy.optimize.brute`.
     Finishes with `scipy.optimize.minimize` to respect the bounds.
     Suitable for non-linear functions.
@@ -28,7 +33,7 @@ def min_fun_brute(fun: Callable[[npt.NDArray], float], bounds: Bounds, ns=20) ->
     def finish(fun2, x0, args, **kwargs):
         return minimize(fun2, x0, args=args, bounds=bounds, **kwargs)
 
-    _, val_opt, _, _ = brute(
+    x_star, fun_star, _, _ = brute(
         fun, tuple(zip(bounds.lb, bounds.ub)), Ns=ns, full_output=True, finish=finish
     )
-    return val_opt
+    return x_star, fun_star

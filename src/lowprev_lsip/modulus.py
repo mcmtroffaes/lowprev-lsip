@@ -46,7 +46,8 @@ def modulus_of_continuity_at(
     bounds: Bounds,
     x: npt.NDArray,
 ) -> float:
-    return -min_fun(lambda y: -abs(fun(x) - fun(y)), bounds)
+    x_star, f_star = min_fun(lambda y: -abs(fun(x) - fun(y)), bounds)
+    return -f_star
 
 
 def modulus_of_continuity(
@@ -64,7 +65,8 @@ def modulus_of_continuity(
             min_fun_inner, fun, get_neighbourhood_bounds(bounds, x, z), x
         )
 
-    return -min_fun(fun2, bounds)
+    x_star, f_star = min_fun(fun2, bounds)
+    return -f_star
 
 
 def lipschitz_constant(
@@ -80,4 +82,5 @@ def lipschitz_constant(
     def fun2(x: npt.NDArray) -> float:
         return -np.sum(np.abs(fun_grad(x)))
 
-    return -min_fun(fun2, bounds)
+    x_star, f_star = min_fun(fun2, bounds)
+    return -f_star

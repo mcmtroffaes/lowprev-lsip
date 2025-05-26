@@ -105,7 +105,7 @@ def get_osc_lin_prog(t: float, num: int) -> tuple[float, float]:
     grid = np.meshgrid(
         *[np.linspace(lb, ub, num) for lb, ub in zip(osc_bounds.lb, osc_bounds.ub)]
     )
-    points = np.vstack([coord.ravel() for coord in grid]).T
+    points = list(np.vstack([coord.ravel() for coord in grid]).T)
     low_prev = [(x1, 1.1, 1.2), (x2, 0.05, 0.07)]
     lp1 = get_linear_program(y, low_prev, points)
     lp2 = get_linear_program(y_neg, low_prev, points)
