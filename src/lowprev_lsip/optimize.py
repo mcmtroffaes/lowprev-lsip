@@ -11,6 +11,11 @@ class MinFun(Protocol):
     ) -> tuple[npt.NDArray, float]: ...
 
 
+def max_fun(min_fun: MinFun, fun: Callable[[npt.NDArray], float], bounds: Bounds) -> tuple[npt.NDArray, float]:
+    x_star, f_star = min_fun(lambda x: -fun(x), bounds)
+    return x_star, -f_star
+
+
 def min_fun_minimize(
     fun: Callable[[npt.NDArray], float], bounds: Bounds
 ) -> tuple[npt.NDArray, float]:

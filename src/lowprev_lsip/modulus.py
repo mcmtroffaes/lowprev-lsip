@@ -12,7 +12,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.optimize import Bounds
 
-from lowprev_lsip.optimize import MinFun, min_fun_minimize
+from lowprev_lsip.optimize import MinFun, min_fun_minimize, max_fun
 
 
 def modulus_of_continuity_slow(
@@ -46,8 +46,7 @@ def modulus_of_continuity_at(
     bounds: Bounds,
     x: npt.NDArray,
 ) -> float:
-    x_star, f_star = min_fun(lambda y: -abs(fun(x) - fun(y)), bounds)
-    return -f_star
+    return max_fun(min_fun, lambda y: -abs(fun(x) - fun(y)), bounds)[1]
 
 
 def modulus_of_continuity(
@@ -57,16 +56,22 @@ def modulus_of_continuity(
     min_fun: MinFun | None = None,
     min_fun_inner: MinFun | None = None,
 ) -> float:
+    """Calculate modulus of continuity.
+
+    This function uses a nested optimization strategy.
+    The *min_fun* routing runs an optimization over the entire domain.
+    For each point in the domain, *max_fun* runs an optimization over its neighbourhood.
+    By default, :func:`lowprev_lsip.optimize.min_fun_minimize` is used.
+    """
     min_fun = min_fun if min_fun is not None else min_fun_minimize
     min_fun_inner = min_fun_inner if min_fun_inner is not None else min_fun_minimize
 
     def fun2(x: npt.NDArray) -> float:
-        return -modulus_of_continuity_at(
+        return modulus_of_continuity_at(
             min_fun_inner, fun, get_neighbourhood_bounds(bounds, x, z), x
         )
 
-    x_star, f_star = min_fun(fun2, bounds)
-    return -f_star
+    return max_fun(min_fun, fun2, bounds)[1]
 
 
 def lipschitz_constant(
@@ -80,7 +85,6 @@ def lipschitz_constant(
     min_fun = min_fun if min_fun is not None else min_fun_minimize
 
     def fun2(x: npt.NDArray) -> float:
-        return -np.sum(np.abs(fun_grad(x)))
+        return np.sum(np.abs(fun_grad(x)))
 
-    x_star, f_star = min_fun(fun2, bounds)
-    return -f_star
+    return max_fun(min_fun, fun2, bounds)[1]
