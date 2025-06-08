@@ -8,3 +8,8 @@
 *.egg-info/
 *.pyc
 /.idea/
+*.bbl
+*.bcf
+*.out
+*.run.xml
+*.synctex.gz
