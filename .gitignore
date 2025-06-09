@@ -12,4 +12,5 @@
 *.bcf
 *.out
 *.run.xml
-*.synctex.gz
+*.synctex*
+*.bak
