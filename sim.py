@@ -124,7 +124,6 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     for x1 in [x1_lp, x1_up]:
         for x2 in [x2_lp, x2_up]:
             fs = oscillator(ts, x1, x2)
-            print(fs)
             max_fs_lp = np.maximum(max_fs_lp, fs)
             min_fs_up = np.minimum(min_fs_up, fs)
     lps: Sequence[tuple[float, npt.NDArray, float, npt.NDArray]] = [
@@ -178,34 +177,32 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     plt.savefig("plot-alpha-bound-1.png")
     plt.close()
     # lambda
-    plt.plot(
-        ts,
-        max_fs_lp - min_fs_up,
-        color="C2",
-        label=r"$\max_{t\in T_0} f_\tau(t)-\min_{t\in T_0} f_\tau(t)$",
-        linestyle="--",
-    )
-    plt.hlines(y=0, xmin=min(ts), xmax=max(ts), color="C2", linestyle="-.")
-    plt.fill_between(ts, max_fs_lp - min_fs_up, color="C2", alpha=0.5)
+    plt.plot(ts, max_fs_lp - min_fs_lp, color="C0",
+             label=r"$\max_{t\in T_0} f_\tau(t)-\inf_{t\in T} f_\tau(t)$",
+             linestyle="--")
+    plt.plot(ts, max_fs_up - min_fs_up, color="C1",
+             label=r"$\sup_{t\in T} f_\tau(t)-\min_{t\in T_0} f_\tau(t)$",
+             linestyle="--")
     # plot code assumes it is 0.1 for simplicity...
     assert x1_up - x1_lp == pytest.approx(0.1)
     assert x2_up - x2_lp == pytest.approx(0.1)
     assert all(len(x[1]) == 5 for x in lps)
     assert all(len(x[3]) == 5 for x in lps)
-    plt.plot(
-        ts,
-        [sum(x[3][i] for i in range(4)) * 0.1 for x in lps],
-        color="C1",
-        linestyle="-",
-        label=r"$\sum_X\lambda_X(P̅(X)-P̲(X))$",
-    )
-    plt.plot(
-        ts,
-        [sum(x[1][i] for i in range(4)) * 0.1 for x in lps],
-        color="C0",
-        linestyle="-",
-        label=r"$\sum_X\lambda_X(P̅(X)-P̲(X))$",
-    )
+    for i in range(4):
+        plt.plot(
+            ts,
+            [x[1][i] * 0.1 for x in lps],
+            color="C0",
+            linestyle="-",
+            label=r"$\lambda_X(P̅(X)-P̲(X))$" if i == 0 else None,
+        )
+        plt.plot(
+            ts,
+            [x[3][i] * 0.1 for x in lps],
+            color="C1",
+            linestyle="-",
+            label=r"$\lambda_X(P̅(X)-P̲(X))$" if i == 0 else None,
+        )
     plt.legend()
     plt.xlabel(r"$\tau$")
     plt.tight_layout()
