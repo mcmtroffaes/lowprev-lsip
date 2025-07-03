@@ -46,7 +46,7 @@ def modulus_of_continuity_at(
     bounds: Bounds,
     x: npt.NDArray,
 ) -> float:
-    return max_fun(min_fun, lambda y: -abs(fun(x) - fun(y)), bounds)[1]
+    return max_fun(min_fun, lambda y: abs(fun(x) - fun(y)), bounds)[1]
 
 
 def modulus_of_continuity(
