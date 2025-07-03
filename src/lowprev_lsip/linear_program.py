@@ -41,9 +41,11 @@ def get_linear_program(
 
 
 def solve_linear_program(lp: LinearProgram) -> float:
-    return -scipy.optimize.linprog(
+    result = scipy.optimize.linprog(
         c=lp.c,
         A_ub=lp.A_ub,
         b_ub=lp.b_ub,
         bounds=lp.bounds,  # type: ignore
-    ).fun
+    )
+    assert result.success, result.message
+    return -result.fun
