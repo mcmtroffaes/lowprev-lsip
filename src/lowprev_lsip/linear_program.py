@@ -40,7 +40,7 @@ def get_linear_program(
     )
 
 
-def solve_linear_program(lp: LinearProgram) -> float:
+def solve_linear_program(lp: LinearProgram) -> tuple[float, npt.NDArray]:
     result = scipy.optimize.linprog(
         c=lp.c,
         A_ub=lp.A_ub,
@@ -48,4 +48,4 @@ def solve_linear_program(lp: LinearProgram) -> float:
         bounds=lp.bounds,  # type: ignore
     )
     assert result.success, result.message
-    return -result.fun
+    return -result.fun, result.x

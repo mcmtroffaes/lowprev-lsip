@@ -1,4 +1,5 @@
 import math
+from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -121,14 +122,15 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
             fs = oscillator(ts, x1, x2)
             max_fs_lp = np.maximum(max_fs_lp, fs)
             min_fs_up = np.minimum(min_fs_up, fs)
-    lps = [get_osc_lin_prog(t, 100) for t in ts]
-    # alpha
+    lps: Sequence[tuple[float, npt.NDArray, float, npt.NDArray]] = [
+        get_osc_lin_prog(t, 101) for t in ts
+    ]
     plt.plot(
         ts, max_fs_up, color="C1", linestyle="--", label=r"$\sup_{t\in T} f_\tau(t)$"
     )
     plt.plot(
         ts,
-        [x[1] for x in lps],
+        [x[2] for x in lps],
         color="C1",
         linestyle="-",
         linewidth=2,
@@ -167,7 +169,6 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
         alpha=0.5,
         label=r"$\left[\min_{t\in T_0} f_\tau(t),\sup_{t\in T} f_\tau(t)\right]$",
     )
-    # natural extension
     plt.legend()
     plt.title(r"Bounds on $\alpha$ along with lower and upper natural extensions")
     plt.savefig("plot-alpha-bound-1.png")
@@ -178,16 +179,27 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
         max_fs_lp - min_fs_up,
         color="C2",
         label=r"$\max_{t\in T_0} f_\tau(t)-\min_{t\in T_0} f_\tau(t)$",
+        linestyle="--",
     )
-    plt.hlines(y=0, xmin=min(ts), xmax=max(ts), color="C2")
+    plt.hlines(y=0, xmin=min(ts), xmax=max(ts), color="C2", linestyle="-.")
     plt.fill_between(ts, max_fs_lp - min_fs_up, color="C2", alpha=0.5)
+    # plot code assumes it is 0.1 for simplicity...
+    assert x1_up - x1_lp == pytest.approx(0.1)
+    assert x2_up - x2_lp == pytest.approx(0.1)
+    for i in [0, 1, 2, 3]:
+        assert all(len(x[1]) == 5 for x in lps)
+        assert all(len(x[3]) == 5 for x in lps)
+        plt.plot(ts, [x[1][i] * 0.1 for x in lps], color="C2", linestyle="-")
+        plt.plot(ts, [x[3][i] * 0.1 for x in lps], color="C2", linestyle="-")
     plt.legend()
     plt.title(r"Bounds on $(\overline{P}(X)-P̲(X))\lambda_X$")
     plt.savefig("plot-alpha-bound-2.png")
     plt.close()
 
 
-def get_osc_lin_prog(t: float, num: int) -> tuple[float, float]:
+def get_osc_lin_prog(
+    t: float, num: int
+) -> tuple[float, npt.NDArray, float, npt.NDArray]:
     def y(omega: npt.NDArray) -> float:
         return oscillator(t, omega[0], omega[1])
 
@@ -207,11 +219,13 @@ def get_osc_lin_prog(t: float, num: int) -> tuple[float, float]:
     low_prev = [(x1, x1_lp, x1_up), (x2, x2_lp, x2_up)]
     lp1 = get_linear_program(y, low_prev, points)
     lp2 = get_linear_program(y_neg, low_prev, points)
-    return solve_linear_program(lp1), -solve_linear_program(lp2)
+    val1, sol1 = solve_linear_program(lp1)
+    val2, sol2 = solve_linear_program(lp2)
+    return val1, sol1, -val2, sol2
 
 
 if __name__ == "__main__":
-    plot_alpha_bound(ts=np.linspace(0, 2, 200))
+    plot_alpha_bound(ts=np.linspace(0, 2, 50))
     # plot_oscillator(t=0, num=30, cmap="plasma")
     # plot_oscillator(t=1, num=30, cmap="plasma")
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
