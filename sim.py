@@ -14,29 +14,43 @@ from lowprev_lsip.modulus import (
     lipschitz_constant,
     modulus_of_continuity,
 )
-from lowprev_lsip.optimize import min_fun_brute
+from lowprev_lsip.optimize import min_fun_brute, max_fun
+
+# hard bounds
+# 1 <= x1 <= 2
+# pi/2 <= x2 <= pi
+x1_lb = 1.0
+x1_ub = 2.0
+x2_lb = 0.5 * math.pi
+x2_ub = math.pi
+
+# lower and upper previsions
+x1_lp = 1.4
+x1_up = 1.5
+x2_lp = 3.0
+x2_up = 3.1
 
 
 def oscillator(t: float, x1: float, x2: float) -> float:
-    return np.sin(2 * math.pi * (t - x1 * x2) / x1)
+    return np.sin(x2 + 2 * math.pi * t / x1)
 
 
 def oscillator_grad(t: float, x1: float, x2: float) -> tuple[float, float]:
-    v = 2 * math.pi * np.cos(2 * math.pi * (t / x1 - x2))
-    return -v * t / (x1**2), -v
+    v = np.cos(x2 + 2 * math.pi * t / x1)
+    return -2 * math.pi * v * t / (x1**2), v
 
 
-osc_bounds = Bounds(lb=[1, 0], ub=[1.3, 0.1])  # 1 <= x[0] <= 1.3, 0 <= x[1] <= 0.1
+osc_bounds = Bounds(lb=[x1_lb, x2_lb], ub=[x1_ub, x2_ub])
 
 
 def test_oscillator() -> None:
     assert oscillator(3, 1, 0) == pytest.approx(0)
-    assert oscillator(3, 1, 0.5) == pytest.approx(0)
-    assert oscillator(3, 1, 1) == pytest.approx(0)
-    assert oscillator(1, 1, 1.25) == pytest.approx(-1)
-    assert oscillator(1, 1, 1.75) == pytest.approx(1)
-    assert oscillator(1, 2, 0.75) == pytest.approx(-1)
-    assert oscillator(1, 2, 1.25) == pytest.approx(1)
+    assert oscillator(3, 1, -math.pi) == pytest.approx(0)
+    assert oscillator(3, 1, -2 * math.pi) == pytest.approx(0)
+    assert oscillator(1, 1, -2.5 * math.pi) == pytest.approx(-1)
+    assert oscillator(1, 1, -3.5 * math.pi) == pytest.approx(1)
+    assert oscillator(1, 2, -3.5 * math.pi) == pytest.approx(-1)
+    assert oscillator(1, 2, -2.5 * math.pi) == pytest.approx(1)
 
 
 def plot_oscillator(t: float, num: int, cmap: str) -> None:
@@ -47,9 +61,9 @@ def plot_oscillator(t: float, num: int, cmap: str) -> None:
     zz = fun(xx, yy).astype(float)
     plt.contourf(xx, yy, zz, cmap=cmap)
     plt.colorbar()
-    plt.xlabel("$x_1$")
-    plt.ylabel("$x_2$")
-    plt.title(f"$f_t(x_1,x_2)$ for $t={t}$")
+    plt.xlabel("$t_1$")
+    plt.ylabel("$t_2$")
+    plt.title(rf"$f_\tau(t_1,t_2)$ for $\tau={t}$")
     plt.show()
 
 
@@ -89,6 +103,90 @@ def plot_for_modulus(t: float, zs: npt.NDArray) -> None:
     plt.show()
 
 
+def plot_alpha_bound(ts: npt.NDArray) -> None:
+    min_fs_lp = [
+        min_fun_brute(lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds)[1]
+        for t in ts
+    ]
+    max_fs_up = [
+        max_fun(min_fun_brute, lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds)[
+            1
+        ]
+        for t in ts
+    ]
+    max_fs_lp = oscillator(ts, x1_lp, x2_lp)
+    min_fs_up = max_fs_lp[:]
+    for x1 in [x1_lp, x1_up]:
+        for x2 in [x2_lp, x2_up]:
+            fs = oscillator(ts, x1, x2)
+            max_fs_lp = np.maximum(max_fs_lp, fs)
+            min_fs_up = np.minimum(min_fs_up, fs)
+    lps = [get_osc_lin_prog(t, 100) for t in ts]
+    # alpha
+    plt.plot(
+        ts, max_fs_up, color="C1", linestyle="--", label=r"$\sup_{t\in T} f_\tau(t)$"
+    )
+    plt.plot(
+        ts,
+        [x[1] for x in lps],
+        color="C1",
+        linestyle="-",
+        linewidth=2,
+        label=r"$\overline{E}(f_\tau(X_1,X_2)$",
+    )
+    plt.plot(
+        ts, max_fs_lp, color="C0", linestyle="-.", label=r"$\max_{t\in T_0} f_\tau(t)$"
+    )
+    plt.plot(
+        ts, min_fs_up, color="C1", linestyle="-.", label=r"$\min_{t\in T_0} f_\tau(t)$"
+    )
+    plt.plot(
+        ts,
+        [x[0] for x in lps],
+        color="C0",
+        linestyle="-",
+        linewidth=2,
+        label=r"$E̲(f_\tau(X_1,X_2)$",
+    )
+    plt.plot(
+        ts, min_fs_lp, color="C0", linestyle="--", label=r"$\inf_{t\in T} f_\tau(t)$"
+    )
+    plt.fill_between(
+        ts,
+        min_fs_lp,
+        max_fs_lp,
+        color="C0",
+        alpha=0.5,
+        label=r"$\left[\inf_{t\in T} f_\tau(t),\max_{t\in T_0} f_\tau(t)\right]$",
+    )
+    plt.fill_between(
+        ts,
+        min_fs_up,
+        max_fs_up,
+        color="C1",
+        alpha=0.5,
+        label=r"$\left[\min_{t\in T_0} f_\tau(t),\sup_{t\in T} f_\tau(t)\right]$",
+    )
+    # natural extension
+    plt.legend()
+    plt.title(r"Bounds on $\alpha$ along with lower and upper natural extensions")
+    plt.savefig("plot-alpha-bound-1.png")
+    plt.close()
+    # lambda
+    plt.plot(
+        ts,
+        max_fs_lp - min_fs_up,
+        color="C2",
+        label=r"$\max_{t\in T_0} f_\tau(t)-\min_{t\in T_0} f_\tau(t)$",
+    )
+    plt.hlines(y=0, xmin=min(ts), xmax=max(ts), color="C2")
+    plt.fill_between(ts, max_fs_lp - min_fs_up, color="C2", alpha=0.5)
+    plt.legend()
+    plt.title(r"Bounds on $(\overline{P}(X)-P̲(X))\lambda_X$")
+    plt.savefig("plot-alpha-bound-2.png")
+    plt.close()
+
+
 def get_osc_lin_prog(t: float, num: int) -> tuple[float, float]:
     def y(omega: npt.NDArray) -> float:
         return oscillator(t, omega[0], omega[1])
@@ -106,16 +204,15 @@ def get_osc_lin_prog(t: float, num: int) -> tuple[float, float]:
         *[np.linspace(lb, ub, num) for lb, ub in zip(osc_bounds.lb, osc_bounds.ub)]
     )
     points = list(np.vstack([coord.ravel() for coord in grid]).T)
-    low_prev = [(x1, 1.1, 1.2), (x2, 0.05, 0.07)]
+    low_prev = [(x1, x1_lp, x1_up), (x2, x2_lp, x2_up)]
     lp1 = get_linear_program(y, low_prev, points)
     lp2 = get_linear_program(y_neg, low_prev, points)
     return solve_linear_program(lp1), -solve_linear_program(lp2)
 
 
 if __name__ == "__main__":
-    for t in np.linspace(2, 5, 20):
-        print(t, get_osc_lin_prog(t=t, num=100))
-    plot_oscillator(t=2, num=30, cmap="plasma")
-    plot_oscillator(t=5, num=200, cmap="plasma")
-    plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
-    plot_for_modulus(t=5, zs=np.linspace(0, 0.1, 30))
+    plot_alpha_bound(ts=np.linspace(0, 2, 200))
+    # plot_oscillator(t=0, num=30, cmap="plasma")
+    # plot_oscillator(t=1, num=30, cmap="plasma")
+    # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
+    # plot_for_modulus(t=5, zs=np.linspace(0, 0.1, 30))
