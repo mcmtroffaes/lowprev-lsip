@@ -105,18 +105,22 @@ def plot_for_modulus(t: float, zs: npt.NDArray) -> None:
 
 
 def plot_alpha_bound(ts: npt.NDArray) -> None:
-    min_fs_lp = [
-        min_fun_brute(lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds)[1]
-        for t in ts
-    ]
-    max_fs_up = [
-        max_fun(min_fun_brute, lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds)[
-            1
+    min_fs_lp = np.array(
+        [
+            min_fun_brute(lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds)[1]
+            for t in ts
         ]
-        for t in ts
-    ]
+    )
+    max_fs_up = np.array(
+        [
+            max_fun(
+                min_fun_brute, lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds
+            )[1]
+            for t in ts
+        ]
+    )
     max_fs_lp = oscillator(ts, x1_lp, x2_lp)
-    min_fs_up = max_fs_lp[:]
+    min_fs_up = oscillator(ts, x1_lp, x2_lp)
     for x1 in [x1_lp, x1_up]:
         for x2 in [x2_lp, x2_up]:
             fs = oscillator(ts, x1, x2)
@@ -134,7 +138,7 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
         color="C1",
         linestyle="-",
         linewidth=2,
-        label=r"$\overline{E}(f_\tau(X_1,X_2)$",
+        label=r"$E̅(f_\tau(X_1,X_2)$",
     )
     plt.plot(
         ts, max_fs_lp, color="C0", linestyle="-.", label=r"$\max_{t\in T_0} f_\tau(t)$"
@@ -159,7 +163,6 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
         max_fs_lp,
         color="C0",
         alpha=0.5,
-        label=r"$\left[\inf_{t\in T} f_\tau(t),\max_{t\in T_0} f_\tau(t)\right]$",
     )
     plt.fill_between(
         ts,
@@ -167,10 +170,10 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
         max_fs_up,
         color="C1",
         alpha=0.5,
-        label=r"$\left[\min_{t\in T_0} f_\tau(t),\sup_{t\in T} f_\tau(t)\right]$",
     )
     plt.legend()
-    plt.title(r"Bounds on $\alpha$ along with lower and upper natural extensions")
+    plt.xlabel(r"$\tau$")
+    plt.tight_layout()
     plt.savefig("plot-alpha-bound-1.png")
     plt.close()
     # lambda
@@ -186,13 +189,25 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     # plot code assumes it is 0.1 for simplicity...
     assert x1_up - x1_lp == pytest.approx(0.1)
     assert x2_up - x2_lp == pytest.approx(0.1)
-    for i in [0, 1, 2, 3]:
-        assert all(len(x[1]) == 5 for x in lps)
-        assert all(len(x[3]) == 5 for x in lps)
-        plt.plot(ts, [x[1][i] * 0.1 for x in lps], color="C2", linestyle="-")
-        plt.plot(ts, [x[3][i] * 0.1 for x in lps], color="C2", linestyle="-")
+    assert all(len(x[1]) == 5 for x in lps)
+    assert all(len(x[3]) == 5 for x in lps)
+    plt.plot(
+        ts,
+        [sum(x[3][i] for i in range(4)) * 0.1 for x in lps],
+        color="C1",
+        linestyle="-",
+        label=r"$\sum_X\lambda_X(P̅(X)-P̲(X))$",
+    )
+    plt.plot(
+        ts,
+        [sum(x[1][i] for i in range(4)) * 0.1 for x in lps],
+        color="C0",
+        linestyle="-",
+        label=r"$\sum_X\lambda_X(P̅(X)-P̲(X))$",
+    )
     plt.legend()
-    plt.title(r"Bounds on $(\overline{P}(X)-P̲(X))\lambda_X$")
+    plt.xlabel(r"$\tau$")
+    plt.tight_layout()
     plt.savefig("plot-alpha-bound-2.png")
     plt.close()
 
@@ -225,7 +240,7 @@ def get_osc_lin_prog(
 
 
 if __name__ == "__main__":
-    plot_alpha_bound(ts=np.linspace(0, 2, 50))
+    plot_alpha_bound(ts=np.linspace(0, 2, 200))
     # plot_oscillator(t=0, num=30, cmap="plasma")
     # plot_oscillator(t=1, num=30, cmap="plasma")
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
