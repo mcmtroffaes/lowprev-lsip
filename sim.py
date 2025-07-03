@@ -124,6 +124,7 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     for x1 in [x1_lp, x1_up]:
         for x2 in [x2_lp, x2_up]:
             fs = oscillator(ts, x1, x2)
+            print(fs)
             max_fs_lp = np.maximum(max_fs_lp, fs)
             min_fs_up = np.minimum(min_fs_up, fs)
     lps: Sequence[tuple[float, npt.NDArray, float, npt.NDArray]] = [
@@ -133,26 +134,10 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
         ts, max_fs_up, color="C1", linestyle="--", label=r"$\sup_{t\in T} f_\tau(t)$"
     )
     plt.plot(
-        ts,
-        [x[2] for x in lps],
-        color="C1",
-        linestyle="-",
-        linewidth=2,
-        label=r"$E̅(f_\tau(X_1,X_2)$",
-    )
-    plt.plot(
         ts, max_fs_lp, color="C0", linestyle="-.", label=r"$\max_{t\in T_0} f_\tau(t)$"
     )
     plt.plot(
         ts, min_fs_up, color="C1", linestyle="-.", label=r"$\min_{t\in T_0} f_\tau(t)$"
-    )
-    plt.plot(
-        ts,
-        [x[0] for x in lps],
-        color="C0",
-        linestyle="-",
-        linewidth=2,
-        label=r"$E̲(f_\tau(X_1,X_2)$",
     )
     plt.plot(
         ts, min_fs_lp, color="C0", linestyle="--", label=r"$\inf_{t\in T} f_\tau(t)$"
@@ -170,6 +155,22 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
         max_fs_up,
         color="C1",
         alpha=0.5,
+    )
+    plt.plot(
+        ts,
+        [x[2] for x in lps],
+        color="C1",
+        linestyle="-",
+        linewidth=2,
+        label=r"$E̅(f_\tau(X_1,X_2)$",
+    )
+    plt.plot(
+        ts,
+        [x[0] for x in lps],
+        color="C0",
+        linestyle="-",
+        linewidth=2,
+        label=r"$E̲(f_\tau(X_1,X_2)$",
     )
     plt.legend()
     plt.xlabel(r"$\tau$")
