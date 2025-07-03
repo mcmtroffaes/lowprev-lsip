@@ -221,7 +221,7 @@ def get_osc_lin_prog(
     lp2 = get_linear_program(y_neg, low_prev, points)
     val1, sol1 = solve_linear_program(lp1)
     val2, sol2 = solve_linear_program(lp2)
-    return val1, sol1, -val2, sol2
+    return -val1, sol1, val2, sol2
 
 
 if __name__ == "__main__":

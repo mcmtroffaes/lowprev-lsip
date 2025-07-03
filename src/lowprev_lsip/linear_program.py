@@ -48,4 +48,4 @@ def solve_linear_program(lp: LinearProgram) -> tuple[float, npt.NDArray]:
         bounds=lp.bounds,  # type: ignore
     )
     assert result.success, result.message
-    return -result.fun, result.x
+    return result.fun, result.x
