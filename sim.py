@@ -195,6 +195,7 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
         linestyle="-",
         label=r"$\sum_X\lambda_X(X(t^*)-P̲(X))$ for $E̲(f_\tau(X_1,X_2))$",
     )
+    plt.hlines(0, min(ts), max(ts), color="C2", linestyle="--", label="0")
     plt.legend()
     plt.xlabel(r"$\tau$")
     plt.tight_layout()
