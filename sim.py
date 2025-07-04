@@ -164,16 +164,16 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     # lambda
     plt.plot(
         ts,
-        fs_t_star - inf_fs,
-        color="C0",
-        label=r"$f_\tau(t^*)-\inf_{t\in T} f_\tau(t)$",
+        sup_fs - fs_t_star,
+        color="C1",
+        label=r"$\sup_{t\in T} f_\tau(t)-f_\tau(t^*)$",
         linestyle="--",
     )
     plt.plot(
         ts,
-        sup_fs - fs_t_star,
-        color="C1",
-        label=r"$\sup_{t\in T} f_\tau(t)-f_\tau(t^*)$",
+        fs_t_star - inf_fs,
+        color="C0",
+        label=r"$f_\tau(t^*)-\inf_{t\in T} f_\tau(t)$",
         linestyle="--",
     )
     # plot code assumes it is 0.1 for simplicity...
@@ -183,17 +183,17 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     assert all(len(x[3]) == 5 for x in lps)
     plt.plot(
         ts,
-        [sum(x[1][i] for i in range(4)) * 0.05 for x in lps],
-        color="C0",
-        linestyle="-",
-        label=r"$\sum_X\lambda_X(X(t^*)-P̲(X))$",
-    )
-    plt.plot(
-        ts,
         [sum(x[3][i] for i in range(4)) * 0.05 for x in lps],
         color="C1",
         linestyle="-",
-        label=r"$\sum_X\lambda_X(P̅(X)-X(t^*))$",
+        label=r"$\sum_X\lambda_X(X(t^*)-P̲(X))$ for $E̅(f_\tau(X_1,X_2))$",
+    )
+    plt.plot(
+        ts,
+        [sum(x[1][i] for i in range(4)) * 0.05 for x in lps],
+        color="C0",
+        linestyle="-",
+        label=r"$\sum_X\lambda_X(X(t^*)-P̲(X))$ for $E̲(f_\tau(X_1,X_2))$",
     )
     plt.legend()
     plt.xlabel(r"$\tau$")
