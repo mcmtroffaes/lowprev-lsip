@@ -105,13 +105,13 @@ def plot_for_modulus(t: float, zs: npt.NDArray) -> None:
 
 
 def plot_alpha_bound(ts: npt.NDArray) -> None:
-    min_fs_lp = np.array(
+    inf_fs = np.array(
         [
             min_fun_brute(lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds)[1]
             for t in ts
         ]
     )
-    max_fs_up = np.array(
+    sup_fs = np.array(
         [
             max_fun(
                 min_fun_brute, lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds
@@ -119,42 +119,25 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
             for t in ts
         ]
     )
-    max_fs_lp = oscillator(ts, x1_lp, x2_lp)
-    min_fs_up = oscillator(ts, x1_lp, x2_lp)
-    for x1 in [x1_lp, x1_up]:
-        for x2 in [x2_lp, x2_up]:
-            fs = oscillator(ts, x1, x2)
-            max_fs_lp = np.maximum(max_fs_lp, fs)
-            min_fs_up = np.minimum(min_fs_up, fs)
+    fs_t_star = oscillator(ts, 0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up))
     lps: Sequence[tuple[float, npt.NDArray, float, npt.NDArray]] = [
         get_osc_lin_prog(t, 101) for t in ts
     ]
-    plt.plot(
-        ts, max_fs_up, color="C1", linestyle="--", label=r"$\sup_{t\in T} f_\tau(t)$"
-    )
-    plt.plot(
-        ts, max_fs_lp, color="C0", linestyle="-.", label=r"$\max_{t\in T_0} f_\tau(t)$"
-    )
-    plt.plot(
-        ts, min_fs_up, color="C1", linestyle="-.", label=r"$\min_{t\in T_0} f_\tau(t)$"
-    )
-    plt.plot(
-        ts, min_fs_lp, color="C0", linestyle="--", label=r"$\inf_{t\in T} f_\tau(t)$"
-    )
     plt.fill_between(
         ts,
-        min_fs_lp,
-        max_fs_lp,
+        inf_fs,
+        fs_t_star,
         color="C0",
         alpha=0.5,
     )
     plt.fill_between(
         ts,
-        min_fs_up,
-        max_fs_up,
+        sup_fs,
+        fs_t_star,
         color="C1",
         alpha=0.5,
     )
+    plt.plot(ts, sup_fs, color="C1", linestyle="--", label=r"$\sup_{t\in T} f_\tau(t)$")
     plt.plot(
         ts,
         [x[2] for x in lps],
@@ -163,6 +146,7 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
         linewidth=2,
         label=r"$E̅(f_\tau(X_1,X_2)$",
     )
+    plt.plot(ts, fs_t_star, color="C2", linestyle="--", label=r"$f_\tau(t^*)$")
     plt.plot(
         ts,
         [x[0] for x in lps],
@@ -171,38 +155,46 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
         linewidth=2,
         label=r"$E̲(f_\tau(X_1,X_2)$",
     )
+    plt.plot(ts, inf_fs, color="C0", linestyle="--", label=r"$\inf_{t\in T} f_\tau(t)$")
     plt.legend()
     plt.xlabel(r"$\tau$")
     plt.tight_layout()
     plt.savefig("plot-alpha-bound-1.png")
     plt.close()
     # lambda
-    plt.plot(ts, max_fs_lp - min_fs_lp, color="C0",
-             label=r"$\max_{t\in T_0} f_\tau(t)-\inf_{t\in T} f_\tau(t)$",
-             linestyle="--")
-    plt.plot(ts, max_fs_up - min_fs_up, color="C1",
-             label=r"$\sup_{t\in T} f_\tau(t)-\min_{t\in T_0} f_\tau(t)$",
-             linestyle="--")
+    plt.plot(
+        ts,
+        fs_t_star - inf_fs,
+        color="C0",
+        label=r"$f_\tau(t^*)-\inf_{t\in T} f_\tau(t)$",
+        linestyle="--",
+    )
+    plt.plot(
+        ts,
+        sup_fs - fs_t_star,
+        color="C1",
+        label=r"$\sup_{t\in T} f_\tau(t)-f_\tau(t^*)$",
+        linestyle="--",
+    )
     # plot code assumes it is 0.1 for simplicity...
     assert x1_up - x1_lp == pytest.approx(0.1)
     assert x2_up - x2_lp == pytest.approx(0.1)
     assert all(len(x[1]) == 5 for x in lps)
     assert all(len(x[3]) == 5 for x in lps)
-    for i in range(4):
-        plt.plot(
-            ts,
-            [x[1][i] * 0.1 for x in lps],
-            color="C0",
-            linestyle="-",
-            label=r"$\lambda_X(P̅(X)-P̲(X))$" if i == 0 else None,
-        )
-        plt.plot(
-            ts,
-            [x[3][i] * 0.1 for x in lps],
-            color="C1",
-            linestyle="-",
-            label=r"$\lambda_X(P̅(X)-P̲(X))$" if i == 0 else None,
-        )
+    plt.plot(
+        ts,
+        [sum(x[1][i] for i in range(4)) * 0.05 for x in lps],
+        color="C0",
+        linestyle="-",
+        label=r"$\sum_X\lambda_X(X(t^*)-P̲(X))$",
+    )
+    plt.plot(
+        ts,
+        [sum(x[3][i] for i in range(4)) * 0.05 for x in lps],
+        color="C1",
+        linestyle="-",
+        label=r"$\sum_X\lambda_X(P̅(X)-X(t^*))$",
+    )
     plt.legend()
     plt.xlabel(r"$\tau$")
     plt.tight_layout()
