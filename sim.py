@@ -119,7 +119,9 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
             for t in ts
         ]
     )
-    fs_t_star = oscillator(ts, 0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up))
+    fs_t_star = np.array(
+        [oscillator(t, 0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)) for t in ts]
+    )
     lps: Sequence[tuple[float, npt.NDArray, float, npt.NDArray]] = [
         get_osc_lin_prog(t, 101) for t in ts
     ]
