@@ -12,7 +12,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.optimize import Bounds
 
-from lowprev_lsip.optimize import MinFun, min_fun_minimize, max_fun
+from lowprev_lsip.optimize import MinFun, max_fun, min_fun_minimize
 
 
 def modulus_of_continuity_slow(
