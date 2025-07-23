@@ -8,14 +8,17 @@ import pytest
 from scipy.optimize import Bounds
 
 from lowprev_lsip.linear_program import (
+    NaturalExtensionResult,
     get_linear_program,
+    solve_conjugate_natural_extension,
     solve_linear_program,
+    solve_natural_extension,
 )
 from lowprev_lsip.modulus import (
     lipschitz_constant,
     modulus_of_continuity,
 )
-from lowprev_lsip.optimize import min_fun_brute, max_fun
+from lowprev_lsip.optimize import max_fun, min_fun_brute
 
 # hard bounds
 # 1 <= x1 <= 2
@@ -205,9 +208,7 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     plt.close()
 
 
-def get_osc_lin_prog(
-    t: float, num: int
-) -> tuple[float, npt.NDArray, float, npt.NDArray]:
+def get_osc_lin_prog(t: float, num: int) -> tuple[float, float]:
     def y(omega: npt.NDArray) -> float:
         return oscillator(t, omega[0], omega[1])
 
@@ -229,11 +230,40 @@ def get_osc_lin_prog(
     lp2 = get_linear_program(y_neg, low_prev, points)
     val1, sol1 = solve_linear_program(lp1)
     val2, sol2 = solve_linear_program(lp2)
-    return -val1, sol1, val2, sol2
+    return -val1, val2
+
+
+def get_osc_semi_lin_prog(
+    t: float, error: float
+) -> tuple[NaturalExtensionResult, NaturalExtensionResult]:
+    def y(omega: npt.NDArray) -> float:
+        return oscillator(t, omega[0], omega[1])
+
+    def x1(omega: npt.NDArray) -> float:
+        return omega[0]
+
+    def x2(omega: npt.NDArray) -> float:
+        return omega[1]
+
+    points = [np.array([0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)])]
+    low_prev = [(x1, x1_lp, x1_up), (x2, x2_lp, x2_up)]
+    result1 = solve_natural_extension(
+        y, low_prev, points, osc_bounds, min_fun_brute, error
+    )
+    result2 = solve_conjugate_natural_extension(
+        y, low_prev, points, osc_bounds, min_fun_brute, error
+    )
+    return result1, result2
 
 
 if __name__ == "__main__":
-    plot_alpha_bound(ts=np.linspace(0, 2, 200))
+    # plot_alpha_bound(ts=np.linspace(0, 2, 200))
+    # for _t in np.linspace(0, 2, 10):
+    #    print(_t, get_osc_lin_prog(t=_t, num=200))
+    _t = 0.7
+    print(get_osc_lin_prog(t=_t, num=200))
+    _result1, _result2 = get_osc_semi_lin_prog(t=_t, error=1e-6)
+    print(_result1.bounds, _result2.bounds, len(_result1.points), len(_result2.points))
     # plot_oscillator(t=0, num=30, cmap="plasma")
     # plot_oscillator(t=1, num=30, cmap="plasma")
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
