@@ -1,4 +1,5 @@
 import math
+import time
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -7,12 +8,15 @@ import numpy.typing as npt
 import pytest
 from scipy.optimize import Bounds
 
-from lowprev_lsip.linear_program import (
-    NaturalExtensionResult,
-    get_linear_program,
-    solve_conjugate_natural_extension,
-    solve_linear_program,
-    solve_natural_extension,
+from lowprev_lsip.low_prev import (
+    Gamble,
+    NaturalExtensionResult1,
+    NaturalExtensionResult2,
+    get_conjugate_gamble,
+    solve_conjugate_natural_extension_1,
+    solve_conjugate_natural_extension_2,
+    solve_natural_extension_1,
+    solve_natural_extension_2,
 )
 from lowprev_lsip.modulus import (
     lipschitz_constant,
@@ -45,6 +49,29 @@ def oscillator_grad(t: float, x1: float, x2: float) -> tuple[float, float]:
 
 
 osc_bounds = Bounds(lb=[x1_lb, x2_lb], ub=[x1_ub, x2_ub])
+
+
+def osc_x1(omega: npt.NDArray) -> float:
+    return omega[0]
+
+
+def osc_x2(omega: npt.NDArray) -> float:
+    return omega[1]
+
+
+osc_low_prev: Sequence[tuple[Gamble, float]] = [
+    (osc_x1, x1_lp),
+    (get_conjugate_gamble(osc_x1), -x1_up),
+    (osc_x2, x2_lp),
+    (get_conjugate_gamble(osc_x2), -x2_up),
+]
+
+
+def osc_y(t: float) -> Gamble:
+    def _(omega: npt.NDArray) -> float:
+        return oscillator(t, omega[0], omega[1])
+
+    return _
 
 
 def test_oscillator() -> None:
@@ -125,8 +152,8 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     fs_t_star = np.array(
         [oscillator(t, 0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)) for t in ts]
     )
-    lps: Sequence[tuple[float, npt.NDArray, float, npt.NDArray]] = [
-        get_osc_lin_prog(t, 101) for t in ts
+    lps: Sequence[tuple[NaturalExtensionResult2, NaturalExtensionResult2]] = [
+        get_osc_semi_lin_prog(t, 1e-6) for t in ts
     ]
     plt.fill_between(
         ts,
@@ -145,7 +172,7 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     plt.plot(ts, sup_fs, color="C1", linestyle="--", label=r"$\sup_{t\in T} f_\tau(t)$")
     plt.plot(
         ts,
-        [x[2] for x in lps],
+        [x[1].alpha_bounds[1] for x in lps],
         color="C1",
         linestyle="-",
         linewidth=2,
@@ -154,7 +181,7 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     plt.plot(ts, fs_t_star, color="C2", linestyle="--", label=r"$f_\tau(t^*)$")
     plt.plot(
         ts,
-        [x[0] for x in lps],
+        [x[0].alpha_bounds[0] for x in lps],
         color="C0",
         linestyle="-",
         linewidth=2,
@@ -184,18 +211,18 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     # plot code assumes it is 0.1 for simplicity...
     assert x1_up - x1_lp == pytest.approx(0.1)
     assert x2_up - x2_lp == pytest.approx(0.1)
-    assert all(len(x[1]) == 5 for x in lps)
-    assert all(len(x[3]) == 5 for x in lps)
+    assert all(len(x[0].lambda_) == 4 for x in lps)
+    assert all(len(x[1].lambda_) == 4 for x in lps)
     plt.plot(
         ts,
-        [sum(x[3][i] for i in range(4)) * 0.05 for x in lps],
+        [sum(x[1].lambda_) * 0.05 for x in lps],
         color="C1",
         linestyle="-",
         label=r"$\sum_X\lambda_X(X(t^*)-P̲(X))$ for $E̅(f_\tau(X_1,X_2))$",
     )
     plt.plot(
         ts,
-        [sum(x[1][i] for i in range(4)) * 0.05 for x in lps],
+        [sum(x[0].lambda_) * 0.05 for x in lps],
         color="C0",
         linestyle="-",
         label=r"$\sum_X\lambda_X(X(t^*)-P̲(X))$ for $E̲(f_\tau(X_1,X_2))$",
@@ -208,62 +235,53 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     plt.close()
 
 
-def get_osc_lin_prog(t: float, num: int) -> tuple[float, float]:
-    def y(omega: npt.NDArray) -> float:
-        return oscillator(t, omega[0], omega[1])
-
-    def y_neg(omega: npt.NDArray) -> float:
-        return -oscillator(t, omega[0], omega[1])
-
-    def x1(omega: npt.NDArray) -> float:
-        return omega[0]
-
-    def x2(omega: npt.NDArray) -> float:
-        return omega[1]
-
+def get_osc_lin_prog(
+    t: float, num: int
+) -> tuple[NaturalExtensionResult1, NaturalExtensionResult1]:
     grid = np.meshgrid(
         *[np.linspace(lb, ub, num) for lb, ub in zip(osc_bounds.lb, osc_bounds.ub)]
     )
     points = list(np.vstack([coord.ravel() for coord in grid]).T)
-    low_prev = [(x1, x1_lp, x1_up), (x2, x2_lp, x2_up)]
-    lp1 = get_linear_program(y, low_prev, points)
-    lp2 = get_linear_program(y_neg, low_prev, points)
-    val1, sol1 = solve_linear_program(lp1)
-    val2, sol2 = solve_linear_program(lp2)
-    return -val1, val2
+    y: Gamble = osc_y(t)
+    result1 = solve_natural_extension_1(y, osc_low_prev, points)
+    result2 = solve_conjugate_natural_extension_1(y, osc_low_prev, points)
+    return result1, result2
 
 
 def get_osc_semi_lin_prog(
     t: float, error: float
-) -> tuple[NaturalExtensionResult, NaturalExtensionResult]:
-    def y(omega: npt.NDArray) -> float:
-        return oscillator(t, omega[0], omega[1])
-
-    def x1(omega: npt.NDArray) -> float:
-        return omega[0]
-
-    def x2(omega: npt.NDArray) -> float:
-        return omega[1]
-
+) -> tuple[NaturalExtensionResult2, NaturalExtensionResult2]:
     points = [np.array([0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)])]
-    low_prev = [(x1, x1_lp, x1_up), (x2, x2_lp, x2_up)]
-    result1 = solve_natural_extension(
-        y, low_prev, points, osc_bounds, min_fun_brute, error
+    y: Gamble = osc_y(t)
+    result1 = solve_natural_extension_2(
+        y, osc_low_prev, points, osc_bounds, min_fun_brute, error
     )
-    result2 = solve_conjugate_natural_extension(
-        y, low_prev, points, osc_bounds, min_fun_brute, error
+    result2 = solve_conjugate_natural_extension_2(
+        y, osc_low_prev, points, osc_bounds, min_fun_brute, error
     )
     return result1, result2
 
 
 if __name__ == "__main__":
-    # plot_alpha_bound(ts=np.linspace(0, 2, 200))
-    # for _t in np.linspace(0, 2, 10):
-    #    print(_t, get_osc_lin_prog(t=_t, num=200))
+    plot_alpha_bound(ts=np.linspace(0, 2, 200))
     _t = 0.7
-    print(get_osc_lin_prog(t=_t, num=200))
+    _t1 = time.time()
+    from pprint import pprint
+
+    print("naive method with num=200")
+    pprint(get_osc_lin_prog(t=_t, num=200))
+    _t2 = time.time()
+    print(_t2 - _t1)
+    print("our algorithm 3")
     _result1, _result2 = get_osc_semi_lin_prog(t=_t, error=1e-6)
-    print(_result1.bounds, _result2.bounds, len(_result1.points), len(_result2.points))
+    _t3 = time.time()
+    print(
+        _result1.alpha_bounds,
+        _result2.alpha_bounds,
+        len(_result1.points),
+        len(_result2.points),
+    )
+    print(_t3 - _t2)
     # plot_oscillator(t=0, num=30, cmap="plasma")
     # plot_oscillator(t=1, num=30, cmap="plasma")
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
