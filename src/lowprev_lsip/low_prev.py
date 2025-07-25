@@ -1,5 +1,5 @@
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -36,7 +36,7 @@ def get_conjugate_gamble(y: Gamble) -> Gamble:
 
 
 @dataclass
-class NaturalExtensionResult1:
+class NaturalExtensionResult:
     # note: true solution lies between alpha - delta_tilde and alpha
     lambda_: npt.NDArray
     alpha: float
@@ -69,7 +69,7 @@ def solve_natural_extension_1(
     points: Sequence[npt.NDArray],
     bounds: Bounds,
     min_fun: MinFun,
-) -> NaturalExtensionResult1:
+) -> NaturalExtensionResult:
     start = time.time()
     lin_prog = get_low_prev_linear_program(y, low_prev, points)
     _, lambda_alpha = solve_linear_program(lin_prog)
@@ -79,19 +79,13 @@ def solve_natural_extension_1(
     assert isinstance(alpha, float)
     t_next, delta = max_discrepancy(y, low_prev, lambda_, alpha, bounds, min_fun)
     delta_tilde = max(0.0, delta)
-    return NaturalExtensionResult1(
+    return NaturalExtensionResult(
         lambda_=lambda_,
         alpha=alpha,
         t_next=t_next,
         delta_tilde=delta_tilde,
         time=time.time() - start,
     )
-
-
-@dataclass
-class NaturalExtensionResult2(NaturalExtensionResult1):
-    all_points: Sequence[npt.NDArray]
-    all_results: Sequence[NaturalExtensionResult1]
 
 
 def solve_natural_extension_2(
@@ -101,21 +95,11 @@ def solve_natural_extension_2(
     bounds: Bounds,
     min_fun: MinFun,
     tolerance: float,
-) -> NaturalExtensionResult2:
-    start = time.time()
-    points = list(initial_points)  # U_0
-    all_results: list[NaturalExtensionResult1] = []
+) -> Iterable[NaturalExtensionResult]:
+    points = list(initial_points)
     while True:
         result = solve_natural_extension_1(y, low_prev, points, bounds, min_fun)
-        all_results.append(result)
+        yield result
         if result.delta_tilde < tolerance:
-            return NaturalExtensionResult2(
-                lambda_=result.lambda_,
-                alpha=result.alpha,
-                t_next=result.t_next,
-                delta_tilde=result.delta_tilde,
-                time=time.time() - start,
-                all_points=points,
-                all_results=all_results,
-            )
+            return
         points.append(result.t_next)

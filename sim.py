@@ -13,8 +13,7 @@ from scipy.optimize import Bounds
 
 from lowprev_lsip.low_prev import (
     Gamble,
-    NaturalExtensionResult1,
-    NaturalExtensionResult2,
+    NaturalExtensionResult,
     get_conjugate_gamble,
     solve_natural_extension_1,
     solve_natural_extension_2,
@@ -137,8 +136,8 @@ def plot_for_modulus(t: float, zs: npt.NDArray) -> None:
 
 @dataclass
 class SimulationResult:
-    grid: Mapping[int, NaturalExtensionResult1]
-    semi: Mapping[float, NaturalExtensionResult2]
+    grid: Mapping[int, NaturalExtensionResult]
+    semi: Mapping[float, Sequence[NaturalExtensionResult]]
 
 
 def plot_alpha_bound(
@@ -154,8 +153,8 @@ def plot_alpha_bound(
     fs_t_star = np.array(
         [oscillator(t, 0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)) for t in ts]
     )
-    lps: Sequence[NaturalExtensionResult2] = [
-        result.semi[error] for result in simulation.values()
+    lps: Sequence[NaturalExtensionResult] = [
+        result.semi[error][-1] for result in simulation.values()
     ]
     plt.plot(ts, fs_t_star, color="C1", linestyle="--", label=r"$f_\tau(t^*)$")
     plt.plot(
@@ -198,7 +197,7 @@ def plot_alpha_bound(
     plt.close()
 
 
-def get_osc_lin_prog(t: float, num: int) -> NaturalExtensionResult1:
+def get_osc_lin_prog(t: float, num: int) -> NaturalExtensionResult:
     logging.info("get_osc_lin_prog %s %s", t, num)
     grid = np.meshgrid(
         *[np.linspace(lb, ub, num) for lb, ub in zip(osc_bounds.lb, osc_bounds.ub)]
@@ -211,12 +210,14 @@ def get_osc_lin_prog(t: float, num: int) -> NaturalExtensionResult1:
     return result
 
 
-def get_osc_semi_lin_prog(t: float, error: float) -> NaturalExtensionResult2:
+def get_osc_semi_lin_prog(t: float, error: float) -> Sequence[NaturalExtensionResult]:
     logging.info("get_osc_semi_lin_prog %s %s", t, error)
     points = [np.array([0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)])]
     y: Gamble = osc_y(t)
-    return solve_natural_extension_2(
-        y, osc_low_prev, points, osc_bounds, min_fun_brute, error
+    return list(
+        solve_natural_extension_2(
+            y, osc_low_prev, points, osc_bounds, min_fun_brute, error
+        )
     )
 
 
