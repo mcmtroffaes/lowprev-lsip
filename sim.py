@@ -1,6 +1,9 @@
+import logging
 import math
-import time
-from collections.abc import Sequence
+import pickle
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,8 +16,6 @@ from lowprev_lsip.low_prev import (
     NaturalExtensionResult1,
     NaturalExtensionResult2,
     get_conjugate_gamble,
-    solve_conjugate_natural_extension_1,
-    solve_conjugate_natural_extension_2,
     solve_natural_extension_1,
     solve_natural_extension_2,
 )
@@ -22,7 +23,7 @@ from lowprev_lsip.modulus import (
     lipschitz_constant,
     modulus_of_continuity,
 )
-from lowprev_lsip.optimize import max_fun, min_fun_brute
+from lowprev_lsip.optimize import min_fun_brute
 
 # hard bounds
 # 1 <= x1 <= 2
@@ -134,60 +135,37 @@ def plot_for_modulus(t: float, zs: npt.NDArray) -> None:
     plt.show()
 
 
-def plot_alpha_bound(ts: npt.NDArray) -> None:
+@dataclass
+class SimulationResult:
+    grid: Mapping[int, NaturalExtensionResult1]
+    semi: Mapping[float, NaturalExtensionResult2]
+
+
+def plot_alpha_bound(
+    simulation: Mapping[float, SimulationResult], error: float
+) -> None:
+    ts: Sequence[float] = list(simulation.keys())
     inf_fs = np.array(
         [
             min_fun_brute(lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds)[1]
             for t in ts
         ]
     )
-    sup_fs = np.array(
-        [
-            max_fun(
-                min_fun_brute, lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds
-            )[1]
-            for t in ts
-        ]
-    )
     fs_t_star = np.array(
         [oscillator(t, 0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)) for t in ts]
     )
-    lps: Sequence[tuple[NaturalExtensionResult2, NaturalExtensionResult2]] = [
-        get_osc_semi_lin_prog(t, 1e-6) for t in ts
+    lps: Sequence[NaturalExtensionResult2] = [
+        result.semi[error] for result in simulation.values()
     ]
-    plt.fill_between(
-        ts,
-        inf_fs,
-        fs_t_star,
-        color="C0",
-        alpha=0.5,
-    )
-    plt.fill_between(
-        ts,
-        sup_fs,
-        fs_t_star,
-        color="C1",
-        alpha=0.5,
-    )
-    plt.plot(ts, sup_fs, color="C1", linestyle="--", label=r"$\sup_{t\in T} f_\tau(t)$")
+    plt.plot(ts, fs_t_star, color="C1", linestyle="--", label=r"$f_\tau(t^*)$")
     plt.plot(
         ts,
-        [x[1].alpha_bounds[1] for x in lps],
-        color="C1",
-        linestyle="-",
-        linewidth=2,
-        label=r"$E̅(f_\tau(X_1,X_2)$",
-    )
-    plt.plot(ts, fs_t_star, color="C2", linestyle="--", label=r"$f_\tau(t^*)$")
-    plt.plot(
-        ts,
-        [x[0].alpha_bounds[0] for x in lps],
+        [x.alpha for x in lps],
         color="C0",
         linestyle="-",
-        linewidth=2,
         label=r"$E̲(f_\tau(X_1,X_2)$",
     )
-    plt.plot(ts, inf_fs, color="C0", linestyle="--", label=r"$\inf_{t\in T} f_\tau(t)$")
+    plt.plot(ts, inf_fs, color="C2", linestyle=":", label=r"$\inf_{t\in T} f_\tau(t)$")
     plt.legend()
     plt.xlabel(r"$\tau$")
     plt.tight_layout()
@@ -196,38 +174,23 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     # lambda
     plt.plot(
         ts,
-        sup_fs - fs_t_star,
-        color="C1",
-        label=r"$\sup_{t\in T} f_\tau(t)-f_\tau(t^*)$",
-        linestyle="--",
-    )
-    plt.plot(
-        ts,
         fs_t_star - inf_fs,
-        color="C0",
+        color="C1",
         label=r"$f_\tau(t^*)-\inf_{t\in T} f_\tau(t)$",
         linestyle="--",
     )
     # plot code assumes it is 0.1 for simplicity...
     assert x1_up - x1_lp == pytest.approx(0.1)
     assert x2_up - x2_lp == pytest.approx(0.1)
-    assert all(len(x[0].lambda_) == 4 for x in lps)
-    assert all(len(x[1].lambda_) == 4 for x in lps)
+    assert all(len(x.lambda_) == 4 for x in lps)
     plt.plot(
         ts,
-        [sum(x[1].lambda_) * 0.05 for x in lps],
-        color="C1",
-        linestyle="-",
-        label=r"$\sum_X\lambda_X(X(t^*)-P̲(X))$ for $E̅(f_\tau(X_1,X_2))$",
-    )
-    plt.plot(
-        ts,
-        [sum(x[0].lambda_) * 0.05 for x in lps],
+        [sum(x.lambda_) * 0.05 for x in lps],
         color="C0",
         linestyle="-",
-        label=r"$\sum_X\lambda_X(X(t^*)-P̲(X))$ for $E̲(f_\tau(X_1,X_2))$",
+        label=r"$\sum_X\lambda_X(X(t^*)-P̲(X))$",
     )
-    plt.hlines(0, min(ts), max(ts), color="C2", linestyle="--", label="0")
+    plt.hlines(0, min(ts), max(ts), color="C2", linestyle=":", label="0")
     plt.legend()
     plt.xlabel(r"$\tau$")
     plt.tight_layout()
@@ -235,53 +198,51 @@ def plot_alpha_bound(ts: npt.NDArray) -> None:
     plt.close()
 
 
-def get_osc_lin_prog(
-    t: float, num: int
-) -> tuple[NaturalExtensionResult1, NaturalExtensionResult1]:
+def get_osc_lin_prog(t: float, num: int) -> NaturalExtensionResult1:
+    logging.info("get_osc_lin_prog %s %s", t, num)
     grid = np.meshgrid(
         *[np.linspace(lb, ub, num) for lb, ub in zip(osc_bounds.lb, osc_bounds.ub)]
     )
     points = list(np.vstack([coord.ravel() for coord in grid]).T)
     y: Gamble = osc_y(t)
-    result1 = solve_natural_extension_1(y, osc_low_prev, points)
-    result2 = solve_conjugate_natural_extension_1(y, osc_low_prev, points)
-    return result1, result2
+    result = solve_natural_extension_1(
+        y, osc_low_prev, points, osc_bounds, min_fun_brute
+    )
+    return result
 
 
-def get_osc_semi_lin_prog(
-    t: float, error: float
-) -> tuple[NaturalExtensionResult2, NaturalExtensionResult2]:
+def get_osc_semi_lin_prog(t: float, error: float) -> NaturalExtensionResult2:
+    logging.info("get_osc_semi_lin_prog %s %s", t, error)
     points = [np.array([0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)])]
     y: Gamble = osc_y(t)
-    result1 = solve_natural_extension_2(
+    return solve_natural_extension_2(
         y, osc_low_prev, points, osc_bounds, min_fun_brute, error
     )
-    result2 = solve_conjugate_natural_extension_2(
-        y, osc_low_prev, points, osc_bounds, min_fun_brute, error
-    )
-    return result1, result2
+
+
+def load_simulation(slow=True) -> Mapping[float, SimulationResult]:
+    simulation_file = Path("simulation.pickle")
+    if simulation_file.exists():
+        with simulation_file.open("rb") as rfile:
+            return pickle.load(rfile)
+    nums = [10, 40, 160] if slow else [10]
+    errors = [1e-2, 1e-4, 1e-6] if slow else [1e-6]
+    simulation: Mapping[float, SimulationResult] = {
+        t: SimulationResult(
+            grid={num: get_osc_lin_prog(t, num) for num in nums},
+            semi={error: get_osc_semi_lin_prog(t, error) for error in errors},
+        )
+        for t in np.linspace(0, 2, 200 if slow else 10)
+    }
+    with simulation_file.open("wb") as out_file:
+        pickle.dump(simulation, out_file)
+    return simulation
 
 
 if __name__ == "__main__":
-    plot_alpha_bound(ts=np.linspace(0, 2, 200))
-    _t = 0.7
-    _t1 = time.time()
-    from pprint import pprint
-
-    print("naive method with num=200")
-    pprint(get_osc_lin_prog(t=_t, num=200))
-    _t2 = time.time()
-    print(_t2 - _t1)
-    print("our algorithm 3")
-    _result1, _result2 = get_osc_semi_lin_prog(t=_t, error=1e-6)
-    _t3 = time.time()
-    print(
-        _result1.alpha_bounds,
-        _result2.alpha_bounds,
-        len(_result1.points),
-        len(_result2.points),
-    )
-    print(_t3 - _t2)
+    logging.basicConfig(level=logging.INFO)
+    _simulation = load_simulation(slow=False)
+    plot_alpha_bound(simulation=_simulation, error=1e-6)
     # plot_oscillator(t=0, num=30, cmap="plasma")
     # plot_oscillator(t=1, num=30, cmap="plasma")
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))

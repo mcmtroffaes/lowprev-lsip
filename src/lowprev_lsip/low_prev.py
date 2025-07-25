@@ -1,3 +1,4 @@
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
@@ -34,56 +35,63 @@ def get_conjugate_gamble(y: Gamble) -> Gamble:
     return y_neg
 
 
-def get_conjugate_bounds(bounds: tuple[float, float]) -> tuple[float, float]:
-    return -bounds[1], -bounds[0]
-
-
 @dataclass
 class NaturalExtensionResult1:
+    # note: true solution lies between alpha - delta_tilde and alpha
     lambda_: npt.NDArray
     alpha: float
+    t_next: npt.NDArray
+    delta_tilde: float
+    time: float
 
 
 def max_discrepancy(
     y: Gamble,
     low_prev: Sequence[tuple[Gamble, float]],
-    result: NaturalExtensionResult1,
+    lambda_: npt.NDArray,
+    alpha: float,
     bounds: Bounds,
     min_fun: MinFun,
 ) -> tuple[npt.NDArray, float]:
     def h(t: npt.NDArray) -> float:
         return (
             -y(t)
-            + result.alpha
-            + sum([lam * (x(t) - lp) for lam, (x, lp) in zip(result.lambda_, low_prev)])
+            + alpha
+            + sum([lam * (x(t) - lp) for lam, (x, lp) in zip(lambda_, low_prev)])
         )
 
     return max_fun(min_fun, h, bounds)
 
 
 def solve_natural_extension_1(
-    y: Gamble, low_prev: Sequence[tuple[Gamble, float]], points: Sequence[npt.NDArray]
+    y: Gamble,
+    low_prev: Sequence[tuple[Gamble, float]],
+    points: Sequence[npt.NDArray],
+    bounds: Bounds,
+    min_fun: MinFun,
 ) -> NaturalExtensionResult1:
+    start = time.time()
     lin_prog = get_low_prev_linear_program(y, low_prev, points)
     _, lambda_alpha = solve_linear_program(lin_prog)
     assert lambda_alpha.shape == (1 + len(low_prev),)
+    lambda_ = lambda_alpha[: len(low_prev)]
     alpha = lambda_alpha[-1]
     assert isinstance(alpha, float)
-    return NaturalExtensionResult1(lambda_alpha[: len(low_prev)], alpha)
-
-
-def solve_conjugate_natural_extension_1(
-    y: Gamble, low_prev: Sequence[tuple[Gamble, float]], points: Sequence[npt.NDArray]
-) -> NaturalExtensionResult1:
-    result = solve_natural_extension_1(get_conjugate_gamble(y), low_prev, points)
-    return NaturalExtensionResult1(result.lambda_, -result.alpha)
+    t_next, delta = max_discrepancy(y, low_prev, lambda_, alpha, bounds, min_fun)
+    delta_tilde = max(0.0, delta)
+    return NaturalExtensionResult1(
+        lambda_=lambda_,
+        alpha=alpha,
+        t_next=t_next,
+        delta_tilde=delta_tilde,
+        time=time.time() - start,
+    )
 
 
 @dataclass
-class NaturalExtensionResult2:
-    lambda_: npt.NDArray
-    alpha_bounds: tuple[float, float]
-    points: Sequence[npt.NDArray]
+class NaturalExtensionResult2(NaturalExtensionResult1):
+    all_points: Sequence[npt.NDArray]
+    all_results: Sequence[NaturalExtensionResult1]
 
 
 def solve_natural_extension_2(
@@ -92,35 +100,22 @@ def solve_natural_extension_2(
     initial_points: Sequence[npt.NDArray],
     bounds: Bounds,
     min_fun: MinFun,
-    error: float,
+    tolerance: float,
 ) -> NaturalExtensionResult2:
+    start = time.time()
     points = list(initial_points)  # U_0
+    all_results: list[NaturalExtensionResult1] = []
     while True:
-        result = solve_natural_extension_1(y, low_prev, points)
-        t_next, delta = max_discrepancy(y, low_prev, result, bounds, min_fun)
-        delta_tilde = max(0.0, delta)
-        if delta_tilde < error:
+        result = solve_natural_extension_1(y, low_prev, points, bounds, min_fun)
+        all_results.append(result)
+        if result.delta_tilde < tolerance:
             return NaturalExtensionResult2(
                 lambda_=result.lambda_,
-                alpha_bounds=(result.alpha - delta_tilde, result.alpha),
-                points=points,
+                alpha=result.alpha,
+                t_next=result.t_next,
+                delta_tilde=result.delta_tilde,
+                time=time.time() - start,
+                all_points=points,
+                all_results=all_results,
             )
-        points.append(t_next)
-
-
-def solve_conjugate_natural_extension_2(
-    y: Gamble,
-    low_prev: Sequence[tuple[Gamble, float]],
-    initial_points: Sequence[npt.NDArray],
-    bounds: Bounds,
-    min_fun: MinFun,
-    error: float,
-) -> NaturalExtensionResult2:
-    result = solve_natural_extension_2(
-        get_conjugate_gamble(y), low_prev, initial_points, bounds, min_fun, error
-    )
-    return NaturalExtensionResult2(
-        lambda_=result.lambda_,
-        alpha_bounds=get_conjugate_bounds(result.alpha_bounds),
-        points=result.points,
-    )
+        points.append(result.t_next)
