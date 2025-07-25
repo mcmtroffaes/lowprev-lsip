@@ -232,10 +232,7 @@ def plot_time_delta_iters(simulation: Mapping[float, SimulationResult]) -> None:
     for error, line_style in zip(errors, line_styles):
         plt.plot(
             ts,
-            [
-                result.semi[error][-1].delta_tilde
-                for result in simulation.values()
-            ],
+            [result.semi[error][-1].delta_tilde for result in simulation.values()],
             color="C0",
             linestyle=line_style,
             label=rf"$\epsilon_1=\epsilon_2={error:g}$",
