@@ -197,6 +197,85 @@ def plot_alpha_bound(
     plt.close()
 
 
+def plot_time_delta_iters(simulation: Mapping[float, SimulationResult]) -> None:
+    ts: Sequence[float] = list(simulation.keys())
+    nums: Sequence[int] = list(simulation[ts[0]].grid.keys())
+    errors: Sequence[float] = list(simulation[ts[0]].semi.keys())
+    line_styles = ["-", "--", ":"]
+    for error, line_style in zip(errors, line_styles):
+        plt.plot(
+            ts,
+            [
+                sum(res.time for res in result.semi[error])
+                for result in simulation.values()
+            ],
+            color="C0",
+            linestyle=line_style,
+            label=rf"$\epsilon_1=\epsilon_2={error:g}$",
+        )
+    for num, line_style in zip(nums, line_styles):
+        plt.plot(
+            ts,
+            [result.grid[num].time for result in simulation.values()],
+            color="C1",
+            linestyle=line_style,
+            label=rf"$|U|={num ** 2}$",
+        )
+    plt.legend()
+    plt.yscale("log")
+    plt.xlabel(r"$\tau$")
+    plt.ylabel("computing time")
+    plt.tight_layout()
+    plt.savefig("plot-time.png")
+    plt.close()
+
+    for error, line_style in zip(errors, line_styles):
+        plt.plot(
+            ts,
+            [
+                result.semi[error][-1].delta_tilde
+                for result in simulation.values()
+            ],
+            color="C0",
+            linestyle=line_style,
+            label=rf"$\epsilon_1=\epsilon_2={error:g}$",
+        )
+    for num, line_style in zip(nums, line_styles):
+        plt.plot(
+            ts,
+            [result.grid[num].delta_tilde for result in simulation.values()],
+            color="C1",
+            linestyle=line_style,
+            label=rf"$|U|={num ** 2}$",
+        )
+    plt.legend()
+    plt.yscale("log")
+    plt.ylim(bottom=1e-7)
+    plt.xlabel(r"$\tau$")
+    plt.ylabel(r"$\tilde{\delta}$")
+    plt.tight_layout()
+    plt.savefig("plot-delta-tilde.png")
+    plt.close()
+
+    for error, line_style in zip(errors, line_styles):
+        plt.plot(
+            ts,
+            [
+                len(result.semi[error])  # |U_k| is number of iterations
+                for result in simulation.values()
+            ],
+            color="C0",
+            linestyle=line_style,
+            label=rf"$\epsilon_1=\epsilon_2={error:g}$",
+        )
+    plt.legend()
+    plt.xlabel(r"$\tau$")
+    plt.ylabel("$|U_k|$")
+    plt.tight_layout()
+    plt.savefig("plot-iterations.png")
+    plt.close()
+
+
 def get_osc_lin_prog(t: float, num: int) -> NaturalExtensionResult:
     logging.info("get_osc_lin_prog %s %s", t, num)
     grid = np.meshgrid(
@@ -244,6 +323,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     _simulation = load_simulation()
     plot_alpha_bound(simulation=_simulation, error=1e-6)
+    plot_time_delta_iters(simulation=_simulation)
     # plot_oscillator(t=0, num=30, cmap="plasma")
     # plot_oscillator(t=1, num=30, cmap="plasma")
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
