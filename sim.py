@@ -242,7 +242,7 @@ def load_simulation(slow=True) -> Mapping[float, SimulationResult]:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    _simulation = load_simulation(slow=False)
+    _simulation = load_simulation()
     plot_alpha_bound(simulation=_simulation, error=1e-6)
     # plot_oscillator(t=0, num=30, cmap="plasma")
     # plot_oscillator(t=1, num=30, cmap="plasma")

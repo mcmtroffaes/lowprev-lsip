@@ -53,6 +53,8 @@ def max_discrepancy(
     bounds: Bounds,
     min_fun: MinFun,
 ) -> tuple[npt.NDArray, float]:
+    assert lambda_.shape == (len(low_prev),)
+
     def h(t: npt.NDArray) -> float:
         return (
             -y(t)
