@@ -22,7 +22,7 @@ from lowprev_lsip.modulus import (
     lipschitz_constant,
     modulus_of_continuity,
 )
-from lowprev_lsip.optimize import min_fun_brute
+from lowprev_lsip.optimize import MinFun, min_fun_brute
 
 # hard bounds
 # 1 <= x1 <= 2
@@ -110,7 +110,7 @@ def test_modulus_of_continuity(t: float, z: float, expected: float) -> None:
     def fun(x: npt.NDArray) -> float:
         return oscillator(t, x[0], x[1])
 
-    mod2 = modulus_of_continuity(fun, osc_bounds, z, min_fun=min_fun_brute)
+    mod2 = modulus_of_continuity(fun, osc_bounds, z, min_fun=min_fun_brute())
     assert mod2 == pytest.approx(expected, abs=0.01)
 
 
@@ -122,9 +122,9 @@ def plot_for_modulus(t: float, zs: npt.NDArray) -> None:
         return np.array(oscillator_grad(t, x[0], x[1]))
 
     mods = [
-        modulus_of_continuity(fun, osc_bounds, z, min_fun=min_fun_brute) for z in zs
+        modulus_of_continuity(fun, osc_bounds, z, min_fun=min_fun_brute()) for z in zs
     ]
-    lip = lipschitz_constant(fun_grad, osc_bounds, min_fun=min_fun_brute)
+    lip = lipschitz_constant(fun_grad, osc_bounds, min_fun=min_fun_brute())
     lips = [lip * z for z in zs]
     plt.ylim(0, 2.1)
     plt.plot(zs, mods, "C0", linestyle="-", label=r"$\xi_{f_t(X_1,X_2)}(z)$")
@@ -146,7 +146,7 @@ def plot_alpha_bound(
     ts: Sequence[float] = list(simulation.keys())
     inf_fs = np.array(
         [
-            min_fun_brute(lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds)[1]
+            min_fun_brute()(lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds)[1]
             for t in ts
         ]
     )
@@ -273,27 +273,85 @@ def plot_time_delta_iters(simulation: Mapping[float, SimulationResult]) -> None:
     plt.close()
 
 
-def get_osc_lin_prog(t: float, num: int) -> NaturalExtensionResult:
+def plot_points(
+    simulation2: Mapping[float, Sequence[NaturalExtensionResult]],
+    error: float,
+    tag: str,
+) -> None:
+    ts = list(simulation2.keys())
+    results = list(simulation2.values())
+    logging.info("plotting points for t in %s", ts)
+    plt.fill(
+        [x1_lb, x1_lb, x1_ub, x1_ub],
+        [x2_lb, x2_ub, x2_ub, x2_lb],
+        color="black",
+        alpha=0.1,
+    )
+    colors = ["C0", "C1", "C2"]
+    markers = ["o", "s", "D"]
+    line_styles = ["-", "--", ":"]
+    plt.scatter(
+        [0.5 * (x1_lp + x1_up)],
+        [0.5 * (x2_lp + x2_up)],
+        color="black",
+        marker="+",
+        label=r"$t^*$",
+    )
+    for t, result, color, marker in zip(ts, results, colors, markers):
+        points = [res.t_next for res in result]
+        plt.scatter(
+            [p[0] for p in points],
+            [p[1] for p in points],
+            color=color,
+            marker=marker,
+            label=rf"$U_k$ when $\tau={t:g}$",
+        )
+    plt.legend()
+    plt.xlabel("$t_1$")
+    plt.ylabel("$t_2$")
+    plt.tight_layout()
+    plt.savefig(f"plot-points-{tag}.png")
+    plt.close()
+
+    for t, result, color, line_style in zip(ts, results, colors, line_styles):
+        deltas = [res.delta_tilde for res in result]
+        plt.plot(
+            range(len(deltas)),
+            deltas,
+            color=color,
+            linestyle=line_style,
+            label=rf"when $\tau={t:g}$",
+        )
+    plt.axhline(y=error, color="C3", linestyle="-.", label=f"{error:g}")
+    plt.legend()
+    plt.xlabel("$k$")
+    plt.ylabel(r"$\tilde{\delta}$")
+    plt.yscale("log")
+    plt.ylim(bottom=0.5 * 1e-6)
+    plt.tight_layout()
+    plt.savefig(f"plot-delta-tilde-iter-{tag}.png")
+    plt.close()
+
+
+def get_osc_lin_prog(t: float, num: int, min_fun: MinFun) -> NaturalExtensionResult:
     logging.info("get_osc_lin_prog %s %s", t, num)
     grid = np.meshgrid(
         *[np.linspace(lb, ub, num) for lb, ub in zip(osc_bounds.lb, osc_bounds.ub)]
     )
     points = list(np.vstack([coord.ravel() for coord in grid]).T)
     y: Gamble = osc_y(t)
-    result = solve_natural_extension_1(
-        y, osc_low_prev, points, osc_bounds, min_fun_brute
-    )
+    result = solve_natural_extension_1(y, osc_low_prev, points, osc_bounds, min_fun)
     return result
 
 
-def get_osc_semi_lin_prog(t: float, error: float) -> Sequence[NaturalExtensionResult]:
+def get_osc_semi_lin_prog(
+    t: float, error: float, min_fun: MinFun
+) -> Sequence[NaturalExtensionResult]:
     logging.info("get_osc_semi_lin_prog %s %s", t, error)
     points = [np.array([0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)])]
     y: Gamble = osc_y(t)
     return list(
-        solve_natural_extension_2(
-            y, osc_low_prev, points, osc_bounds, min_fun_brute, error
-        )
+        solve_natural_extension_2(y, osc_low_prev, points, osc_bounds, min_fun, error)
     )
 
 
@@ -306,10 +364,27 @@ def load_simulation(slow=True) -> Mapping[float, SimulationResult]:
     errors = [1e-2, 1e-4, 1e-6] if slow else [1e-6]
     simulation: Mapping[float, SimulationResult] = {
         t: SimulationResult(
-            grid={num: get_osc_lin_prog(t, num) for num in nums},
-            semi={error: get_osc_semi_lin_prog(t, error) for error in errors},
+            grid={num: get_osc_lin_prog(t, num, min_fun_brute()) for num in nums},
+            semi={
+                error: get_osc_semi_lin_prog(t, error, min_fun_brute())
+                for error in errors
+            },
         )
-        for t in np.linspace(0, 2, 200 if slow else 10)
+        for t in np.linspace(0, 2, 201 if slow else 11)
+    }
+    with simulation_file.open("wb") as out_file:
+        pickle.dump(simulation, out_file)
+    return simulation
+
+
+def load_simulation_2() -> Mapping[float, Sequence[NaturalExtensionResult]]:
+    simulation_file = Path("simulation2.pickle")
+    if simulation_file.exists():
+        with simulation_file.open("rb") as rfile:
+            return pickle.load(rfile)
+    simulation: Mapping[float, Sequence[NaturalExtensionResult]] = {
+        t: get_osc_semi_lin_prog(t, 1e-6, min_fun_brute(1000))
+        for t in [0.25, 0.5, 0.75]
     }
     with simulation_file.open("wb") as out_file:
         pickle.dump(simulation, out_file)
@@ -321,6 +396,15 @@ if __name__ == "__main__":
     _simulation = load_simulation()
     plot_alpha_bound(simulation=_simulation, error=1e-6)
     plot_time_delta_iters(simulation=_simulation)
+    _simulation2 = {
+        t: result.semi[1e-6]
+        for t, result in _simulation.items()
+        if t in {0.25, 0.5, 0.75}
+    }
+    assert list(_simulation2.keys()) == [0.25, 0.5, 0.75]
+    plot_points(simulation2=_simulation2, error=1e-6, tag="1")
+    _simulation2_alt = load_simulation_2()
+    plot_points(simulation2=_simulation2_alt, error=1e-6, tag="2")
     # plot_oscillator(t=0, num=30, cmap="plasma")
     # plot_oscillator(t=1, num=30, cmap="plasma")
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))

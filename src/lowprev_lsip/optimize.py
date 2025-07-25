@@ -28,19 +28,26 @@ def min_fun_minimize(
     return result.x, result.fun
 
 
-def min_fun_brute(
-    fun: Callable[[npt.NDArray], float], bounds: Bounds, ns=20
-) -> tuple[npt.NDArray, float]:
+def min_fun_brute(ns=20) -> MinFun:
     """Wrapper around :func:`scipy.optimize.brute`.
     Finishes with `scipy.optimize.minimize` to respect the bounds.
     Suitable for non-linear functions.
     """
 
-    # note: scipy-stubs has too limited type checking for finish
-    def finish(fun2, x0, args, **kwargs):
-        return minimize(fun2, x0, args=args, bounds=bounds, **kwargs)
+    def _(
+        fun: Callable[[npt.NDArray], float], bounds: Bounds
+    ) -> tuple[npt.NDArray, float]:
+        # note: scipy-stubs has too limited type checking for finish
+        def finish(fun2, x0, args, **kwargs):
+            return minimize(fun2, x0, args=args, bounds=bounds, **kwargs)
 
-    x_star, fun_star, _, _ = brute(
-        fun, tuple(zip(bounds.lb, bounds.ub)), Ns=ns, full_output=True, finish=finish
-    )
-    return x_star, fun_star
+        x_star, fun_star, _, _ = brute(
+            fun,
+            tuple(zip(bounds.lb, bounds.ub)),
+            Ns=ns,
+            full_output=True,
+            finish=finish,
+        )
+        return x_star, fun_star
+
+    return _

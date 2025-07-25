@@ -41,10 +41,10 @@ def test_modulus_of_continuity(
     assert abs(x0 - x1) == pytest.approx(z, abs=0.01)  # 100 points, so 1/100
     mod = modulus_of_continuity(fun, Bounds(0, 1), z)
     assert mod == pytest.approx(expected)
-    mod2 = modulus_of_continuity(fun, Bounds(0, 1), z, min_fun=min_fun_brute)
+    mod2 = modulus_of_continuity(fun, Bounds(0, 1), z, min_fun=min_fun_brute())
     assert mod2 == pytest.approx(expected)
     mod3 = modulus_of_continuity(
-        fun, Bounds(0, 1), z, min_fun=min_fun_brute, min_fun_inner=min_fun_brute
+        fun, Bounds(0, 1), z, min_fun=min_fun_brute(), min_fun_inner=min_fun_brute()
     )
     assert mod3 == pytest.approx(expected)
 
