@@ -200,7 +200,7 @@ def plot_alpha_bound(
         [sum(x.lambda_) * 0.05 for x in lps],
         color="C0",
         linestyle="-",
-        label=r"$\sum_X\lambda_X(X(t^*)-P̲(X))$",
+        label=r"$0.05\sum_X\lambda_X(X(t^*)-P̲(X))$",
     )
     plt.hlines(0, min(ts), max(ts), color="C2", linestyle=":", label="0")
     plt.legend()
