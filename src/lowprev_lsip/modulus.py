@@ -12,7 +12,10 @@ import numpy as np
 import numpy.typing as npt
 from scipy.optimize import Bounds
 
-from lowprev_lsip.optimize import MinFun, max_fun, min_fun_minimize
+from lowprev_lsip.optimize import (
+    MinFun,
+    max_fun,
+)
 
 
 def modulus_of_continuity_slow(
@@ -43,48 +46,43 @@ def get_neighbourhood_bounds(
 def modulus_of_continuity_at(
     min_fun: MinFun,
     fun: Callable[[npt.NDArray], float],
-    bounds: Bounds,
     x: npt.NDArray,
 ) -> float:
-    return max_fun(min_fun, lambda y: abs(fun(x) - fun(y)), bounds)[1]
+    return max_fun(min_fun, lambda y: abs(fun(x) - fun(y)))[0]
 
 
 def modulus_of_continuity(
     fun: Callable[[npt.NDArray], float],
     bounds: Bounds,
     z: float,
-    min_fun: MinFun | None = None,
-    min_fun_inner: MinFun | None = None,
+    min_fun: Callable[[Bounds], MinFun],
+    min_fun_inner: Callable[[Bounds], MinFun],
 ) -> float:
     """Calculate modulus of continuity.
 
     This function uses a nested optimization strategy.
     The *min_fun* routing runs an optimization over the entire domain.
-    For each point in the domain, *max_fun* runs an optimization over its neighbourhood.
-    By default, :func:`lowprev_lsip.optimize.min_fun_minimize` is used.
+    For each point in the domain, *min_fun_inner* runs an optimization over its
+    neighbourhood.
     """
-    min_fun = min_fun if min_fun is not None else min_fun_minimize
-    min_fun_inner = min_fun_inner if min_fun_inner is not None else min_fun_minimize
 
     def fun2(x: npt.NDArray) -> float:
         return modulus_of_continuity_at(
-            min_fun_inner, fun, get_neighbourhood_bounds(bounds, x, z), x
+            min_fun_inner(get_neighbourhood_bounds(bounds, x, z)), fun, x
         )
 
-    return max_fun(min_fun, fun2, bounds)[1]
+    return max_fun(min_fun(bounds), fun2)[0]
 
 
 def lipschitz_constant(
     fun_grad: Callable[[npt.NDArray], npt.NDArray],
-    bounds: Bounds,
-    min_fun: MinFun | None = None,
+    min_fun: MinFun,
 ) -> float:
     """Calculate the Lipschitz constant, from the given function gradient.
     The operator norm is the L1 norm, which is induced by the max norm.
     """
-    min_fun = min_fun if min_fun is not None else min_fun_minimize
 
     def fun2(x: npt.NDArray) -> float:
         return np.sum(np.abs(fun_grad(x)))
 
-    return max_fun(min_fun, fun2, bounds)[1]
+    return max_fun(min_fun, fun2)[0]

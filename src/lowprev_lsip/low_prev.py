@@ -4,12 +4,12 @@ from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
-from scipy.optimize import Bounds
 
 from lowprev_lsip.linear_program import LinearProgram, solve_linear_program
 from lowprev_lsip.optimize import MinFun, max_fun
 
 Gamble = Callable[[npt.NDArray], float]
+GambleGrad = Callable[[npt.NDArray], npt.NDArray]
 
 
 def get_low_prev_linear_program(
@@ -50,9 +50,8 @@ def max_discrepancy(
     low_prev: Sequence[tuple[Gamble, float]],
     lambda_: npt.NDArray,
     alpha: float,
-    bounds: Bounds,
     min_fun: MinFun,
-) -> tuple[npt.NDArray, float]:
+) -> tuple[float, npt.NDArray]:
     assert lambda_.shape == (len(low_prev),)
 
     def h(t: npt.NDArray) -> float:
@@ -62,14 +61,13 @@ def max_discrepancy(
             + sum([lam * (x(t) - lp) for lam, (x, lp) in zip(lambda_, low_prev)])
         )
 
-    return max_fun(min_fun, h, bounds)
+    return max_fun(min_fun, h)
 
 
 def solve_natural_extension_1(
     y: Gamble,
     low_prev: Sequence[tuple[Gamble, float]],
     points: Sequence[npt.NDArray],
-    bounds: Bounds,
     min_fun: MinFun,
 ) -> NaturalExtensionResult:
     start = time.time()
@@ -79,7 +77,7 @@ def solve_natural_extension_1(
     lambda_ = lambda_alpha[: len(low_prev)]
     alpha = lambda_alpha[-1]
     assert isinstance(alpha, float)
-    t_next, delta = max_discrepancy(y, low_prev, lambda_, alpha, bounds, min_fun)
+    delta, t_next = max_discrepancy(y, low_prev, lambda_, alpha, min_fun)
     delta_tilde = max(0.0, delta)
     return NaturalExtensionResult(
         lambda_=lambda_,
@@ -94,13 +92,12 @@ def solve_natural_extension_2(
     y: Gamble,
     low_prev: Sequence[tuple[Gamble, float]],
     initial_points: Sequence[npt.NDArray],
-    bounds: Bounds,
-    min_fun: MinFun,
+    min_fun: Callable[[Sequence[npt.NDArray]], MinFun],
     tolerance: float,
 ) -> Iterable[NaturalExtensionResult]:
     points = list(initial_points)
     while True:
-        result = solve_natural_extension_1(y, low_prev, points, bounds, min_fun)
+        result = solve_natural_extension_1(y, low_prev, points, min_fun(points))
         yield result
         if result.delta_tilde < tolerance:
             return

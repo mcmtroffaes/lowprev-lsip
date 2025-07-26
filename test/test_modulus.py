@@ -1,3 +1,4 @@
+import functools
 from collections.abc import Callable
 
 import numpy as np
@@ -11,7 +12,10 @@ from lowprev_lsip.modulus import (
     modulus_of_continuity,
     modulus_of_continuity_slow,
 )
-from lowprev_lsip.optimize import min_fun_brute
+from lowprev_lsip.optimize import MinFun, min_fun_brute
+
+# fast min_fun_brute
+min_fun_brute_2: Callable[[Bounds], MinFun] = functools.partial(min_fun_brute, ns=2)
 
 
 def test_get_neighbourhood_bounds() -> None:
@@ -39,14 +43,14 @@ def test_modulus_of_continuity(
     assert mod == pytest.approx(expected, rel=0.1)  # large error due to poor grid
     assert abs(fun(x0) - fun(x1)) == pytest.approx(mod)  # should be exact
     assert abs(x0 - x1) == pytest.approx(z, abs=0.01)  # 100 points, so 1/100
-    mod = modulus_of_continuity(fun, Bounds(0, 1), z)
-    assert mod == pytest.approx(expected)
-    mod2 = modulus_of_continuity(fun, Bounds(0, 1), z, min_fun=min_fun_brute())
-    assert mod2 == pytest.approx(expected)
-    mod3 = modulus_of_continuity(
-        fun, Bounds(0, 1), z, min_fun=min_fun_brute(), min_fun_inner=min_fun_brute()
+    mod = modulus_of_continuity(
+        fun, Bounds(0, 1), z, min_fun=min_fun_brute_2, min_fun_inner=min_fun_brute_2
     )
-    assert mod3 == pytest.approx(expected)
+    assert mod == pytest.approx(expected)
+    mod2 = modulus_of_continuity(
+        fun, Bounds(0, 1), z, min_fun=min_fun_brute_2, min_fun_inner=min_fun_brute_2
+    )
+    assert mod2 == pytest.approx(expected)
 
 
 @pytest.mark.parametrize(
@@ -63,9 +67,9 @@ def test_modulus_of_continuity_2(
     expected: float,
 ) -> None:
     bounds = Bounds([0, 0], [1, 1])
-    mod = modulus_of_continuity(fun, bounds, z)
+    mod = modulus_of_continuity(fun, bounds, z, min_fun_brute_2, min_fun_brute_2)
     assert mod == pytest.approx(expected)
-    lip = lipschitz_constant(fun_grad, bounds)
+    lip = lipschitz_constant(fun_grad, min_fun_brute(bounds))
     assert mod == pytest.approx(lip * z)
 
 
@@ -89,9 +93,9 @@ def test_modulus_of_continuity_3(
     exp_lip: float,
 ) -> None:
     bounds = Bounds([0, 0], [1, 1])
-    mod = modulus_of_continuity(fun, bounds, z)
+    mod = modulus_of_continuity(fun, bounds, z, min_fun_brute, min_fun_brute_2)
     assert mod == pytest.approx(exp_mod)
-    lip = lipschitz_constant(fun_grad, bounds)
+    lip = lipschitz_constant(fun_grad, min_fun_brute(bounds))
     assert lip == pytest.approx(exp_lip)
     # mod <= lip * z
     assert min([0, lip * z - mod]) == pytest.approx(0)

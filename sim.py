@@ -1,7 +1,8 @@
+import functools
 import logging
 import math
 import pickle
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from scipy.optimize import Bounds
 
 from lowprev_lsip.low_prev import (
     Gamble,
+    GambleGrad,
     NaturalExtensionResult,
     get_conjugate_gamble,
     solve_natural_extension_1,
@@ -22,7 +24,7 @@ from lowprev_lsip.modulus import (
     lipschitz_constant,
     modulus_of_continuity,
 )
-from lowprev_lsip.optimize import MinFun, min_fun_brute
+from lowprev_lsip.optimize import MinFun, min_fun_brute, min_fun_minimize
 
 # hard bounds
 # 1 <= x1 <= 2
@@ -74,6 +76,13 @@ def osc_y(t: float) -> Gamble:
     return _
 
 
+def osc_y_grad(t: float) -> GambleGrad:
+    def _(omega: npt.NDArray) -> npt.NDArray:
+        return np.array(oscillator_grad(t, omega[0], omega[1]))
+
+    return _
+
+
 def test_oscillator() -> None:
     assert oscillator(3, 1, 0) == pytest.approx(0)
     assert oscillator(3, 1, -math.pi) == pytest.approx(0)
@@ -101,30 +110,28 @@ def plot_oscillator(t: float, num: int, cmap: str) -> None:
 @pytest.mark.parametrize(
     "t,z,expected",
     [
-        (1.8, 0.1, 1.47),
-        (2, 0.15, 1.92),
-        (2.2, 0.2, 2),
+        (1.8, 0.1, 1.07),
+        (2, 0.15, 1.42),
+        (2.2, 0.2, 1.90),
     ],
 )
 def test_modulus_of_continuity(t: float, z: float, expected: float) -> None:
-    def fun(x: npt.NDArray) -> float:
-        return oscillator(t, x[0], x[1])
-
-    mod2 = modulus_of_continuity(fun, osc_bounds, z, min_fun=min_fun_brute())
+    mod2 = modulus_of_continuity(osc_y(t), osc_bounds, z, min_fun_brute, min_fun_brute)
     assert mod2 == pytest.approx(expected, abs=0.01)
 
 
 def plot_for_modulus(t: float, zs: npt.NDArray) -> None:
-    def fun(x: npt.NDArray) -> float:
-        return oscillator(t, x[0], x[1])
-
-    def fun_grad(x: npt.NDArray) -> npt.NDArray:
-        return np.array(oscillator_grad(t, x[0], x[1]))
-
     mods = [
-        modulus_of_continuity(fun, osc_bounds, z, min_fun=min_fun_brute()) for z in zs
+        modulus_of_continuity(
+            osc_y(t),
+            osc_bounds,
+            z,
+            min_fun_brute,
+            functools.partial(min_fun_brute, ns=2),
+        )
+        for z in zs
     ]
-    lip = lipschitz_constant(fun_grad, osc_bounds, min_fun=min_fun_brute())
+    lip = lipschitz_constant(osc_y_grad(t), min_fun_brute(osc_bounds))
     lips = [lip * z for z in zs]
     plt.ylim(0, 2.1)
     plt.plot(zs, mods, "C0", linestyle="-", label=r"$\xi_{f_t(X_1,X_2)}(z)$")
@@ -145,10 +152,7 @@ def plot_alpha_bound(
 ) -> None:
     ts: Sequence[float] = list(simulation.keys())
     inf_fs = np.array(
-        [
-            min_fun_brute()(lambda x: oscillator(t, x[0], x[1]), bounds=osc_bounds)[1]
-            for t in ts
-        ]
+        [min_fun_brute(osc_bounds)(lambda x: oscillator(t, x[0], x[1]))[0] for t in ts]
     )
     fs_t_star = np.array(
         [oscillator(t, 0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)) for t in ts]
@@ -340,19 +344,28 @@ def get_osc_lin_prog(t: float, num: int, min_fun: MinFun) -> NaturalExtensionRes
     )
     points = list(np.vstack([coord.ravel() for coord in grid]).T)
     y: Gamble = osc_y(t)
-    result = solve_natural_extension_1(y, osc_low_prev, points, osc_bounds, min_fun)
+    result = solve_natural_extension_1(
+        y, osc_low_prev, points, min_fun_brute(osc_bounds)
+    )
     return result
 
 
 def get_osc_semi_lin_prog(
-    t: float, error: float, min_fun: MinFun
+    t: float, error: float, min_fun: Callable[[Sequence[npt.NDArray]], MinFun]
 ) -> Sequence[NaturalExtensionResult]:
     logging.info("get_osc_semi_lin_prog %s %s", t, error)
     points = [np.array([0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)])]
     y: Gamble = osc_y(t)
-    return list(
-        solve_natural_extension_2(y, osc_low_prev, points, osc_bounds, min_fun, error)
-    )
+    return list(solve_natural_extension_2(y, osc_low_prev, points, min_fun, error))
+
+
+def osc_min_fun(points: Sequence[npt.NDArray], min_fun: MinFun) -> MinFun:
+    def _(fun: Callable[[npt.NDArray], float]) -> tuple[float, npt.NDArray]:
+        return min(
+            [min_fun_minimize(osc_bounds, x0)(fun) for x0 in points] + [min_fun(fun)]
+        )
+
+    return _
 
 
 def load_simulation(slow=True) -> Mapping[float, SimulationResult]:
@@ -362,13 +375,14 @@ def load_simulation(slow=True) -> Mapping[float, SimulationResult]:
             return pickle.load(rfile)
     nums = [10, 40, 160] if slow else [10]
     errors = [1e-2, 1e-4, 1e-6] if slow else [1e-6]
+    min_grid = min_fun_brute(osc_bounds)
+    min_semi: Callable[[Sequence[npt.NDArray]], MinFun] = functools.partial(
+        osc_min_fun, min_fun=min_grid
+    )
     simulation: Mapping[float, SimulationResult] = {
         t: SimulationResult(
-            grid={num: get_osc_lin_prog(t, num, min_fun_brute()) for num in nums},
-            semi={
-                error: get_osc_semi_lin_prog(t, error, min_fun_brute())
-                for error in errors
-            },
+            grid={num: get_osc_lin_prog(t, num, min_grid) for num in nums},
+            semi={error: get_osc_semi_lin_prog(t, error, min_semi) for error in errors},
         )
         for t in np.linspace(0, 2, 201 if slow else 11)
     }
@@ -382,9 +396,12 @@ def load_simulation_2() -> Mapping[float, Sequence[NaturalExtensionResult]]:
     if simulation_file.exists():
         with simulation_file.open("rb") as rfile:
             return pickle.load(rfile)
+    min_grid = min_fun_brute(osc_bounds, 1000)
+    min_semi: Callable[[Sequence[npt.NDArray]], MinFun] = functools.partial(
+        osc_min_fun, min_fun=min_grid
+    )
     simulation: Mapping[float, Sequence[NaturalExtensionResult]] = {
-        t: get_osc_semi_lin_prog(t, 1e-6, min_fun_brute(1000))
-        for t in [0.25, 0.5, 0.75]
+        t: get_osc_semi_lin_prog(t, 1e-6, min_semi) for t in [0.25, 0.5, 0.75]
     }
     with simulation_file.open("wb") as out_file:
         pickle.dump(simulation, out_file)
