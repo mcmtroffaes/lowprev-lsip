@@ -179,6 +179,7 @@ def plot_alpha_bound(
     plt.plot(ts, inf_fs, color="C2", linestyle=":", label=r"$\inf_{t\in T} f_\tau(t)$")
     plt.legend()
     plt.xlabel(r"$\tau$")
+    plt.grid()
     plt.tight_layout()
     plt.savefig("plot-bound-alpha.png")
     plt.close()
@@ -204,6 +205,7 @@ def plot_alpha_bound(
     plt.hlines(0, min(ts), max(ts), color="C2", linestyle=":", label="0")
     plt.legend()
     plt.xlabel(r"$\tau$")
+    plt.grid()
     plt.tight_layout()
     plt.savefig("plot-bound-lambda.png")
     plt.close()
@@ -240,12 +242,11 @@ def plot_time_delta_iters(
     plt.yscale("log")
     plt.xlabel(r"$\tau$")
     plt.ylabel("computing time")
+    plt.grid()
     plt.tight_layout()
     plt.savefig(f"plot-{tag}-time.png")
     plt.close()
 
-    for error in errors:
-        plt.axhline(y=error, color="black", linestyle="-", linewidth=0.5, alpha=0.5)
     for error, line_style in zip(errors, line_styles):
         plt.plot(
             ts,
@@ -267,6 +268,7 @@ def plot_time_delta_iters(
     plt.ylim(bottom=1e-7)
     plt.xlabel(r"$\tau$")
     plt.ylabel(r"$\tilde{\delta}$")
+    plt.grid()
     plt.tight_layout()
     plt.savefig(f"plot-{tag}-delta-tilde.png")
     plt.close()
@@ -285,6 +287,7 @@ def plot_time_delta_iters(
     plt.legend()
     plt.xlabel(r"$\tau$")
     plt.ylabel("$|U_k|$")
+    plt.grid()
     plt.tight_layout()
     plt.savefig(f"plot-{tag}-iterations.png")
     plt.close()
@@ -330,11 +333,11 @@ def plot_points(
     plt.legend()
     plt.xlabel("$t_1$")
     plt.ylabel("$t_2$")
+    plt.grid()
     plt.tight_layout()
     plt.savefig(f"plot-{tag}-points.png")
     plt.close()
 
-    plt.axhline(y=error, color="black", linestyle="-", linewidth=0.5, alpha=0.5)
     for t, result, color, line_style in zip(ts, results, colors, line_styles):
         deltas = [res.delta_tilde for res in result]
         plt.plot(
@@ -349,6 +352,7 @@ def plot_points(
     plt.ylabel(r"$\tilde{\delta}$")
     plt.yscale("log")
     plt.ylim(bottom=0.5 * 1e-6)
+    plt.grid()
     plt.tight_layout()
     plt.savefig(f"plot-{tag}-delta-tilde-iter.png")
     plt.close()
