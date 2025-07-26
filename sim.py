@@ -349,7 +349,7 @@ def plot_points(
         )
     plt.legend()
     plt.xlabel("$k$")
-    plt.ylabel(r"$\tilde{\delta}$")
+    plt.ylabel(r"$\tilde{\delta}_k$")
     plt.yscale("log")
     plt.ylim(bottom=0.5 * 1e-6)
     plt.grid()
