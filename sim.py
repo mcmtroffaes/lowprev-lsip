@@ -2,7 +2,7 @@ import functools
 import logging
 import math
 import pickle
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,7 +24,15 @@ from lowprev_lsip.modulus import (
     lipschitz_constant,
     modulus_of_continuity,
 )
-from lowprev_lsip.optimize import MinFun, min_fun_brute, min_fun_minimize
+from lowprev_lsip.optimize import (
+    MinFun,
+    min_fun_brute,
+    min_fun_differential_evolution,
+    min_fun_direct,
+    min_fun_dual_annealing,
+    min_fun_minimize,
+    min_fun_shgo,
+)
 
 # hard bounds
 # 1 <= x1 <= 2
@@ -201,7 +209,9 @@ def plot_alpha_bound(
     plt.close()
 
 
-def plot_time_delta_iters(simulation: Mapping[float, SimulationResult]) -> None:
+def plot_time_delta_iters(
+    simulation: Mapping[float, SimulationResult], tag: str
+) -> None:
     ts: Sequence[float] = list(simulation.keys())
     nums: Sequence[int] = list(simulation[ts[0]].grid.keys())
     errors: Sequence[float] = list(simulation[ts[0]].semi.keys())
@@ -230,9 +240,11 @@ def plot_time_delta_iters(simulation: Mapping[float, SimulationResult]) -> None:
     plt.xlabel(r"$\tau$")
     plt.ylabel("computing time")
     plt.tight_layout()
-    plt.savefig("plot-time.png")
+    plt.savefig(f"plot-{tag}-time.png")
     plt.close()
 
+    for error in errors:
+        plt.axhline(y=error, color="black", linestyle="-", linewidth=0.5, alpha=0.5)
     for error, line_style in zip(errors, line_styles):
         plt.plot(
             ts,
@@ -255,7 +267,7 @@ def plot_time_delta_iters(simulation: Mapping[float, SimulationResult]) -> None:
     plt.xlabel(r"$\tau$")
     plt.ylabel(r"$\tilde{\delta}$")
     plt.tight_layout()
-    plt.savefig("plot-delta-tilde.png")
+    plt.savefig(f"plot-{tag}-delta-tilde.png")
     plt.close()
 
     for error, line_style in zip(errors, line_styles):
@@ -273,18 +285,22 @@ def plot_time_delta_iters(simulation: Mapping[float, SimulationResult]) -> None:
     plt.xlabel(r"$\tau$")
     plt.ylabel("$|U_k|$")
     plt.tight_layout()
-    plt.savefig("plot-iterations.png")
+    plt.savefig(f"plot-{tag}-iterations.png")
     plt.close()
 
 
 def plot_points(
-    simulation2: Mapping[float, Sequence[NaturalExtensionResult]],
+    simulation: Mapping[float, SimulationResult],
     error: float,
+    times: Collection[float],
     tag: str,
 ) -> None:
+    simulation2 = {
+        t: result.semi[error] for t, result in simulation.items() if t in times
+    }
+    assert list(simulation2.keys()) == list(times)
     ts = list(simulation2.keys())
     results = list(simulation2.values())
-    logging.info("plotting points for t in %s", ts)
     plt.fill(
         [x1_lb, x1_lb, x1_ub, x1_ub],
         [x2_lb, x2_ub, x2_ub, x2_lb],
@@ -314,9 +330,10 @@ def plot_points(
     plt.xlabel("$t_1$")
     plt.ylabel("$t_2$")
     plt.tight_layout()
-    plt.savefig(f"plot-points-{tag}.png")
+    plt.savefig(f"plot-{tag}-points.png")
     plt.close()
 
+    plt.axhline(y=error, color="black", linestyle="-", linewidth=0.5, alpha=0.5)
     for t, result, color, line_style in zip(ts, results, colors, line_styles):
         deltas = [res.delta_tilde for res in result]
         plt.plot(
@@ -326,14 +343,13 @@ def plot_points(
             linestyle=line_style,
             label=rf"when $\tau={t:g}$",
         )
-    plt.axhline(y=error, color="C3", linestyle="-.", label=f"{error:g}")
     plt.legend()
     plt.xlabel("$k$")
     plt.ylabel(r"$\tilde{\delta}$")
     plt.yscale("log")
     plt.ylim(bottom=0.5 * 1e-6)
     plt.tight_layout()
-    plt.savefig(f"plot-delta-tilde-iter-{tag}.png")
+    plt.savefig(f"plot-{tag}-delta-tilde-iter.png")
     plt.close()
 
 
@@ -361,21 +377,23 @@ def get_osc_semi_lin_prog(
 
 def osc_min_fun(points: Sequence[npt.NDArray], min_fun: MinFun) -> MinFun:
     def _(fun: Callable[[npt.NDArray], float]) -> tuple[float, npt.NDArray]:
-        return min(
-            [min_fun_minimize(osc_bounds, x0)(fun) for x0 in points] + [min_fun(fun)]
-        )
+        results = [min_fun_minimize(osc_bounds, x0)(fun) for x0 in points] + [
+            min_fun(fun)
+        ]
+        return min(results, key=lambda v: v[0])
 
     return _
 
 
-def load_simulation(slow=True) -> Mapping[float, SimulationResult]:
-    simulation_file = Path("simulation.pickle")
+def load_simulation(
+    min_grid: MinFun, tag: str, slow=True
+) -> Mapping[float, SimulationResult]:
+    simulation_file = Path(f"simulation-{tag}.pickle")
     if simulation_file.exists():
         with simulation_file.open("rb") as rfile:
             return pickle.load(rfile)
-    nums = [10, 40, 160] if slow else [10]
+    nums = [10, 50, 250] if slow else [10]
     errors = [1e-2, 1e-4, 1e-6] if slow else [1e-6]
-    min_grid = min_fun_brute(osc_bounds)
     min_semi: Callable[[Sequence[npt.NDArray]], MinFun] = functools.partial(
         osc_min_fun, min_fun=min_grid
     )
@@ -410,18 +428,23 @@ def load_simulation_2() -> Mapping[float, Sequence[NaturalExtensionResult]]:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    _simulation = load_simulation()
-    plot_alpha_bound(simulation=_simulation, error=1e-6)
-    plot_time_delta_iters(simulation=_simulation)
-    _simulation2 = {
-        t: result.semi[1e-6]
-        for t, result in _simulation.items()
-        if t in {0.25, 0.5, 0.75}
-    }
-    assert list(_simulation2.keys()) == [0.25, 0.5, 0.75]
-    plot_points(simulation2=_simulation2, error=1e-6, tag="1")
-    _simulation2_alt = load_simulation_2()
-    plot_points(simulation2=_simulation2_alt, error=1e-6, tag="2")
+    _simulations: dict[str, Mapping[float, SimulationResult]] = {}
+    for _tag, _min_grid in [
+        ("brute20", min_fun_brute(osc_bounds, ns=20)),
+        ("brute100", min_fun_brute(osc_bounds, ns=100)),
+        ("evol", min_fun_differential_evolution(osc_bounds)),
+        ("shgo", min_fun_shgo(osc_bounds)),
+        ("anneal", min_fun_dual_annealing(osc_bounds)),
+        ("direct", min_fun_direct(osc_bounds)),
+    ]:
+        logging.info("running simulation for %s", _tag)
+        _simulation = load_simulation(min_grid=_min_grid, tag=_tag)
+        plot_time_delta_iters(simulation=_simulation, tag=_tag)
+        plot_points(
+            simulation=_simulation, error=1e-6, times={0.25, 0.5, 0.75}, tag=_tag
+        )
+        _simulations[_tag] = _simulation
+    plot_alpha_bound(simulation=_simulations["brute20"], error=1e-6)
     # plot_oscillator(t=0, num=30, cmap="plasma")
     # plot_oscillator(t=1, num=30, cmap="plasma")
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
