@@ -216,21 +216,22 @@ def plot_time_delta_iters(
     nums: Sequence[int] = list(simulation[ts[0]].grid.keys())
     errors: Sequence[float] = list(simulation[ts[0]].semi.keys())
     line_styles = ["-", "--", ":"]
+    # note: omit first time point to remove "warmup" outlier in timing
     for error, line_style in zip(errors, line_styles):
         plt.plot(
-            ts,
+            ts[1:],
             [
                 sum(res.time for res in result.semi[error])
                 for result in simulation.values()
-            ],
+            ][1:],
             color="C0",
             linestyle=line_style,
             label=rf"$\epsilon_1=\epsilon_2={error:g}$",
         )
     for num, line_style in zip(nums, line_styles):
         plt.plot(
-            ts,
-            [result.grid[num].time for result in simulation.values()],
+            ts[1:],
+            [result.grid[num].time for result in simulation.values()][1:],
             color="C1",
             linestyle=line_style,
             label=rf"$|U|={num ** 2}$",
