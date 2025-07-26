@@ -180,7 +180,7 @@ def plot_alpha_bound(
     plt.legend()
     plt.xlabel(r"$\tau$")
     plt.tight_layout()
-    plt.savefig("plot-alpha-bound-1.png")
+    plt.savefig("plot-bound-alpha.png")
     plt.close()
     # lambda
     plt.plot(
@@ -205,7 +205,7 @@ def plot_alpha_bound(
     plt.legend()
     plt.xlabel(r"$\tau$")
     plt.tight_layout()
-    plt.savefig("plot-alpha-bound-2.png")
+    plt.savefig("plot-bound-lambda.png")
     plt.close()
 
 
