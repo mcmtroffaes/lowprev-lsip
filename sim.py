@@ -264,7 +264,7 @@ def plot_time_delta_iters(
             [result.grid[num].delta_tilde for result in simulation.values()],
             color="C1",
             linestyle=line_style,
-            label=rf"$|U|={num ** 2}$",
+            label=rf"$\ell^2={num ** 2}$",
         )
     plt.legend()
     plt.yscale("log")
@@ -280,7 +280,7 @@ def plot_time_delta_iters(
         plt.plot(
             ts,
             [
-                len(result.semi[error])  # |U_k| is number of iterations
+                len(result.semi[error])
                 for result in simulation.values()
             ],
             color="C0",
@@ -289,7 +289,7 @@ def plot_time_delta_iters(
         )
     plt.legend()
     plt.xlabel(r"$\tau$")
-    plt.ylabel("$|U_k|$")
+    plt.ylabel("iterations")
     plt.grid()
     plt.tight_layout()
     plt.savefig(f"plot-sim-iterations-{tag}.png")
