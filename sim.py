@@ -30,7 +30,6 @@ from lowprev_lsip.optimize import (
     min_fun_differential_evolution,
     min_fun_direct,
     min_fun_dual_annealing,
-    min_fun_minimize,
     min_fun_shgo,
 )
 
