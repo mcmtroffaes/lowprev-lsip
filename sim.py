@@ -387,10 +387,9 @@ def plot_discrepancy(
         [result.t_next[1]],
         color="red",
         s=80,
-        label=r"$t_{k+1}$" if k is not None else None,
+        label="maximum",
     )
-    if k is not None:
-        plt.legend()
+    plt.legend()
     plt.xlabel("$t_1$")
     plt.ylabel("$t_2$")
     plt.title(rf"$\tau={t}$" + (f" and $k={k}$" if k is not None else ""))
@@ -450,6 +449,35 @@ def load_simulation(
     return simulation
 
 
+def main_plot_simulations(
+    simulations: dict[str, Mapping[float, SimulationResult]],
+) -> None:
+    for tag, sim in simulations.items():
+        logging.info("plotting %s", tag)
+        plot_time_delta_iters(simulation=sim, tag=tag)
+        plot_points(simulation=sim, error=1e-6, times={0.25, 0.5, 0.75}, tag=tag)
+        t = 0.25
+        error = 1e-6
+        for k, result in enumerate(sim[t].semi[error]):
+            plot_discrepancy(
+                result=result,
+                t=t,
+                k=k,
+                num=300,
+                cmap="coolwarm",
+                tag=f"{tag}-semi-{k}",
+            )
+        for num, result in sim[t].grid.items():
+            plot_discrepancy(
+                result=result,
+                t=t,
+                k=None,
+                num=300,
+                cmap="coolwarm",
+                tag=f"{tag}-grid-{num}",
+            )
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     logging.info("plotting function")
@@ -470,32 +498,7 @@ if __name__ == "__main__":
         logging.info("simulating %s", _tag)
         _simulation = load_simulation(min_grid=_min_grid, tag=_tag)
         _simulations[_tag] = _simulation
-    for _tag, _sim in _simulations.items():
-        logging.info("plotting %s", _tag)
-        plot_time_delta_iters(simulation=_simulation, tag=_tag)
-        plot_points(
-            simulation=_simulation, error=1e-6, times={0.25, 0.5, 0.75}, tag=_tag
-        )
-        _t = 0.25
-        _error = 1e-6
-        for _k, _result in enumerate(_sim[_t].semi[_error]):
-            plot_discrepancy(
-                result=_result,
-                t=_t,
-                k=_k,
-                num=300,
-                cmap="coolwarm",
-                tag=f"{_tag}-semi-{_k}",
-            )
-        for _num, _result in _sim[_t].grid.items():
-            plot_discrepancy(
-                result=_result,
-                t=_t,
-                k=None,
-                num=300,
-                cmap="coolwarm",
-                tag=f"{_tag}-grid-{_num}",
-            )
+    main_plot_simulations(_simulations)
     logging.info("plotting alpha and lambda bounds")
     plot_alpha_bound(simulation=_simulations["brute100"], error=1e-6)
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
