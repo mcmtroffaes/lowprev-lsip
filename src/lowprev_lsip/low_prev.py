@@ -45,6 +45,20 @@ class NaturalExtensionResult:
     time: float
 
 
+def discrepancy(
+    y: Gamble,
+    low_prev: Sequence[tuple[Gamble, float]],
+    lambda_: npt.NDArray,
+    alpha: float,
+    t: npt.NDArray,
+) -> float:
+    return (
+        -y(t)
+        + alpha
+        + sum([lam * (x(t) - lp) for lam, (x, lp) in zip(lambda_, low_prev)])
+    )
+
+
 def max_discrepancy(
     y: Gamble,
     low_prev: Sequence[tuple[Gamble, float]],
@@ -55,11 +69,7 @@ def max_discrepancy(
     assert lambda_.shape == (len(low_prev),)
 
     def h(t: npt.NDArray) -> float:
-        return (
-            -y(t)
-            + alpha
-            + sum([lam * (x(t) - lp) for lam, (x, lp) in zip(lambda_, low_prev)])
-        )
+        return discrepancy(y, low_prev, lambda_, alpha, t)
 
     return max_fun(min_fun, h)
 
