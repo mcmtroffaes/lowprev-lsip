@@ -101,7 +101,7 @@ def test_oscillator() -> None:
     assert oscillator(1, 2, -2.5 * math.pi) == pytest.approx(1)
 
 
-def plot_oscillator(t: float, num: int, cmap: str) -> None:
+def plot_oscillator(t: float, num: int, cmap: str, tag: str) -> None:
     x = np.linspace(osc_bounds.lb[0], osc_bounds.ub[0], num)
     y = np.linspace(osc_bounds.lb[1], osc_bounds.ub[1], num)
     xx, yy = np.meshgrid(x, y)
@@ -112,7 +112,9 @@ def plot_oscillator(t: float, num: int, cmap: str) -> None:
     plt.xlabel("$t_1$")
     plt.ylabel("$t_2$")
     plt.title(rf"$f_\tau(t_1,t_2)$ for $\tau={t}$")
-    plt.show()
+    plt.tight_layout()
+    plt.savefig(f"plot-oscillator-{tag}.png")
+    plt.close()
 
 
 @pytest.mark.parametrize(
@@ -244,7 +246,7 @@ def plot_time_delta_iters(
     plt.ylabel("computing time")
     plt.grid()
     plt.tight_layout()
-    plt.savefig(f"plot-{tag}-time.png")
+    plt.savefig(f"plot-sim-time-{tag}.png")
     plt.close()
 
     for error, line_style in zip(errors, line_styles):
@@ -270,7 +272,7 @@ def plot_time_delta_iters(
     plt.ylabel(r"$\tilde{\delta}$")
     plt.grid()
     plt.tight_layout()
-    plt.savefig(f"plot-{tag}-delta-tilde.png")
+    plt.savefig(f"plot-sim-delta-tilde-{tag}.png")
     plt.close()
 
     for error, line_style in zip(errors, line_styles):
@@ -289,7 +291,7 @@ def plot_time_delta_iters(
     plt.ylabel("$|U_k|$")
     plt.grid()
     plt.tight_layout()
-    plt.savefig(f"plot-{tag}-iterations.png")
+    plt.savefig(f"plot-sim-iterations-{tag}.png")
     plt.close()
 
 
@@ -335,7 +337,7 @@ def plot_points(
     plt.ylabel("$t_2$")
     plt.grid()
     plt.tight_layout()
-    plt.savefig(f"plot-{tag}-points.png")
+    plt.savefig(f"plot-sim-points-{tag}.png")
     plt.close()
 
     for t, result, color, line_style in zip(ts, results, colors, line_styles):
@@ -354,7 +356,7 @@ def plot_points(
     plt.ylim(bottom=0.5 * 1e-6)
     plt.grid()
     plt.tight_layout()
-    plt.savefig(f"plot-{tag}-delta-tilde-iter.png")
+    plt.savefig(f"plot-sim-delta-tilde-iter-{tag}.png")
     plt.close()
 
 
@@ -382,10 +384,7 @@ def get_osc_semi_lin_prog(
 
 def osc_min_fun(points: Sequence[npt.NDArray], min_fun: MinFun) -> MinFun:
     def _(fun: Callable[[npt.NDArray], float]) -> tuple[float, npt.NDArray]:
-        results = [min_fun_minimize(osc_bounds, x0)(fun) for x0 in points] + [
-            min_fun(fun)
-        ]
-        return min(results, key=lambda v: v[0])
+        return min_fun(fun)
 
     return _
 
@@ -433,8 +432,13 @@ def load_simulation_2() -> Mapping[float, Sequence[NaturalExtensionResult]]:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    plot_oscillator(t=0, num=30, cmap="plasma", tag="0_0")
+    plot_oscillator(t=0.5, num=30, cmap="plasma", tag="0_5")
+    plot_oscillator(t=1, num=30, cmap="plasma", tag="1_0")
+    plot_oscillator(t=2, num=30, cmap="plasma", tag="2_0")
     _simulations: dict[str, Mapping[float, SimulationResult]] = {}
     for _tag, _min_grid in [
+        ("brute3", min_fun_brute(osc_bounds, ns=3)),
         ("brute20", min_fun_brute(osc_bounds, ns=20)),
         ("brute100", min_fun_brute(osc_bounds, ns=100)),
         ("evol", min_fun_differential_evolution(osc_bounds)),
@@ -450,7 +454,5 @@ if __name__ == "__main__":
         )
         _simulations[_tag] = _simulation
     plot_alpha_bound(simulation=_simulations["brute20"], error=1e-6)
-    # plot_oscillator(t=0, num=30, cmap="plasma")
-    # plot_oscillator(t=1, num=30, cmap="plasma")
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
     # plot_for_modulus(t=5, zs=np.linspace(0, 0.1, 30))
