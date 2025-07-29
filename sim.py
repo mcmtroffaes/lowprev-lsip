@@ -239,7 +239,7 @@ def plot_time_delta_iters(
             [result.grid[num].time for result in simulation.values()][1:],
             color="C1",
             linestyle=line_style,
-            label=rf"$|U|={num ** 2}$",
+            label=rf"$\ell^2={num ** 2}$",
         )
     plt.legend()
     plt.yscale("log")
