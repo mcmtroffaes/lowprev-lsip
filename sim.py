@@ -381,7 +381,7 @@ def plot_discrepancy(
     )
     zz = fun(xx, yy).astype(float)
     plt.contourf(xx, yy, zz, cmap=cmap, norm=colors.TwoSlopeNorm(vcenter=0))
-    plt.colorbar(label=rf"$H_{{\lambda,\alpha}}(t_1,t_2)$")
+    plt.colorbar(label=r"$H_{{\lambda,\alpha}}(t_1,t_2)$")
     plt.xlabel("$t_1$")
     plt.ylabel("$t_2$")
     plt.title(rf"$\tau={t}$" + (f" and $k={k}$" if k is not None else ""))
