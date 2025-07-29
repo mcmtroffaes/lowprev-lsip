@@ -487,6 +487,7 @@ if __name__ == "__main__":
                 cmap="coolwarm",
                 tag=f"{_tag}-grid-{_num}",
             )
+    logging.info("plotting alpha and lambda bounds")
     plot_alpha_bound(simulation=_simulations["brute100"], error=1e-6)
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
     # plot_for_modulus(t=5, zs=np.linspace(0, 0.1, 30))
