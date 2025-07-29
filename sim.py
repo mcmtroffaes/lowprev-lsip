@@ -381,13 +381,10 @@ def plot_discrepancy(
     )
     zz = fun(xx, yy).astype(float)
     plt.contourf(xx, yy, zz, cmap=cmap, norm=colors.TwoSlopeNorm(vcenter=0))
-    plt.colorbar()
+    plt.colorbar(label=rf"$H_{{\lambda,\alpha}}(t_1,t_2)$")
     plt.xlabel("$t_1$")
     plt.ylabel("$t_2$")
-    plt.title(
-        rf"$H_{{\lambda,\alpha}}(t_1,t_2)$ for $\tau={t}$"
-        + (f" and $k={k}$" if k is not None else "")
-    )
+    plt.title(rf"$\tau={t}$" + (f" and $k={k}$" if k is not None else ""))
     plt.tight_layout()
     plt.savefig(f"plot-sim-h-{tag}.png")
     plt.close()
@@ -446,10 +443,11 @@ def load_simulation(
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    plot_oscillator(t=0, num=30, cmap="plasma", tag="0_0")
-    plot_oscillator(t=0.5, num=30, cmap="plasma", tag="0_5")
-    plot_oscillator(t=1, num=30, cmap="plasma", tag="1_0")
-    plot_oscillator(t=2, num=30, cmap="plasma", tag="2_0")
+    logging.info("plotting function")
+    plot_oscillator(t=0, num=300, cmap="plasma", tag="0_0")
+    plot_oscillator(t=0.5, num=300, cmap="plasma", tag="0_5")
+    plot_oscillator(t=1, num=300, cmap="plasma", tag="1_0")
+    plot_oscillator(t=2, num=300, cmap="plasma", tag="2_0")
     _simulations: dict[str, Mapping[float, SimulationResult]] = {}
     for _tag, _min_grid in [
         ("brute3", min_fun_brute(osc_bounds, ns=3)),
@@ -460,14 +458,15 @@ if __name__ == "__main__":
         ("anneal", min_fun_dual_annealing(osc_bounds)),
         ("direct", min_fun_direct(osc_bounds)),
     ]:
-        logging.info("running simulation for %s", _tag)
+        logging.info("simulating %s", _tag)
         _simulation = load_simulation(min_grid=_min_grid, tag=_tag)
+        _simulations[_tag] = _simulation
+    for _tag, _sim in _simulations.items():
+        logging.info("plotting %s", _tag)
         plot_time_delta_iters(simulation=_simulation, tag=_tag)
         plot_points(
             simulation=_simulation, error=1e-6, times={0.25, 0.5, 0.75}, tag=_tag
         )
-        _simulations[_tag] = _simulation
-    for _sim_tag, _sim in _simulations.items():
         _t = 0.25
         _error = 1e-6
         for _k, _result in enumerate(_sim[_t].semi[_error]):
@@ -475,18 +474,18 @@ if __name__ == "__main__":
                 result=_result,
                 t=_t,
                 k=_k,
-                num=100,
+                num=300,
                 cmap="coolwarm",
-                tag=f"{_sim_tag}-semi-{_k}",
+                tag=f"{_tag}-semi-{_k}",
             )
         for _num, _result in _sim[_t].grid.items():
             plot_discrepancy(
                 result=_result,
                 t=_t,
                 k=None,
-                num=100,
+                num=300,
                 cmap="coolwarm",
-                tag=f"{_sim_tag}-grid-{_num}",
+                tag=f"{_tag}-grid-{_num}",
             )
     plot_alpha_bound(simulation=_simulations["brute100"], error=1e-6)
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
