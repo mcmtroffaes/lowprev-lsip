@@ -10,12 +10,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pytest
+from matplotlib import colors
 from scipy.optimize import Bounds
 
 from lowprev_lsip.low_prev import (
     Gamble,
     GambleGrad,
     NaturalExtensionResult,
+    discrepancy,
     get_conjugate_gamble,
     solve_natural_extension_1,
     solve_natural_extension_2,
@@ -359,6 +361,38 @@ def plot_points(
     plt.close()
 
 
+def plot_discrepancy(
+    result: NaturalExtensionResult,
+    t: float,
+    k: int | None,
+    num: int,
+    cmap: str,
+    tag: str,
+) -> None:
+    x = np.linspace(osc_bounds.lb[0], osc_bounds.ub[0], num)
+    y = np.linspace(osc_bounds.lb[1], osc_bounds.ub[1], num)
+    xx, yy = np.meshgrid(x, y)
+    fun = np.frompyfunc(
+        lambda x1, x2: discrepancy(
+            osc_y(t), osc_low_prev, result.lambda_, result.alpha, np.array([x1, x2])
+        ),
+        2,
+        1,
+    )
+    zz = fun(xx, yy).astype(float)
+    plt.contourf(xx, yy, zz, cmap=cmap, norm=colors.TwoSlopeNorm(vcenter=0))
+    plt.colorbar()
+    plt.xlabel("$t_1$")
+    plt.ylabel("$t_2$")
+    plt.title(
+        rf"$H_{{\lambda,\alpha}}(t_1,t_2)$ for $\tau={t}$"
+        + (f" and $k={k}$" if k is not None else "")
+    )
+    plt.tight_layout()
+    plt.savefig(f"plot-sim-h-{tag}.png")
+    plt.close()
+
+
 def get_osc_lin_prog(t: float, num: int, min_fun: MinFun) -> NaturalExtensionResult:
     logging.info("get_osc_lin_prog %s %s", t, num)
     grid = np.meshgrid(
@@ -366,9 +400,7 @@ def get_osc_lin_prog(t: float, num: int, min_fun: MinFun) -> NaturalExtensionRes
     )
     points = list(np.vstack([coord.ravel() for coord in grid]).T)
     y: Gamble = osc_y(t)
-    result = solve_natural_extension_1(
-        y, osc_low_prev, points, min_fun_brute(osc_bounds)
-    )
+    result = solve_natural_extension_1(y, osc_low_prev, points, min_fun)
     return result
 
 
@@ -412,23 +444,6 @@ def load_simulation(
     return simulation
 
 
-def load_simulation_2() -> Mapping[float, Sequence[NaturalExtensionResult]]:
-    simulation_file = Path("simulation2.pickle")
-    if simulation_file.exists():
-        with simulation_file.open("rb") as rfile:
-            return pickle.load(rfile)
-    min_grid = min_fun_brute(osc_bounds, 1000)
-    min_semi: Callable[[Sequence[npt.NDArray]], MinFun] = functools.partial(
-        osc_min_fun, min_fun=min_grid
-    )
-    simulation: Mapping[float, Sequence[NaturalExtensionResult]] = {
-        t: get_osc_semi_lin_prog(t, 1e-6, min_semi) for t in [0.25, 0.5, 0.75]
-    }
-    with simulation_file.open("wb") as out_file:
-        pickle.dump(simulation, out_file)
-    return simulation
-
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     plot_oscillator(t=0, num=30, cmap="plasma", tag="0_0")
@@ -452,6 +467,27 @@ if __name__ == "__main__":
             simulation=_simulation, error=1e-6, times={0.25, 0.5, 0.75}, tag=_tag
         )
         _simulations[_tag] = _simulation
-    plot_alpha_bound(simulation=_simulations["brute20"], error=1e-6)
+    for _sim_tag, _sim in _simulations.items():
+        _t = 0.25
+        _error = 1e-6
+        for _k, _result in enumerate(_sim[_t].semi[_error]):
+            plot_discrepancy(
+                result=_result,
+                t=_t,
+                k=_k,
+                num=100,
+                cmap="coolwarm",
+                tag=f"{_sim_tag}-semi-{_k}",
+            )
+        for _num, _result in _sim[_t].grid.items():
+            plot_discrepancy(
+                result=_result,
+                t=_t,
+                k=None,
+                num=100,
+                cmap="coolwarm",
+                tag=f"{_sim_tag}-grid-{_num}",
+            )
+    plot_alpha_bound(simulation=_simulations["brute100"], error=1e-6)
     # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
     # plot_for_modulus(t=5, zs=np.linspace(0, 0.1, 30))
