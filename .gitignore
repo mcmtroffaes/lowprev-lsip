@@ -15,4 +15,5 @@
 *.synctex*
 *.bak
 *.pickle
+*.png
 .coverage
