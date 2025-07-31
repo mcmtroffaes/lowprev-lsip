@@ -102,12 +102,12 @@ def solve_natural_extension_2(
     y: Gamble,
     low_prev: Sequence[tuple[Gamble, float]],
     initial_points: Sequence[npt.NDArray],
-    min_fun: Callable[[Sequence[npt.NDArray]], MinFun],
+    min_fun: MinFun,
     tolerance: float,
 ) -> Iterable[NaturalExtensionResult]:
     points = list(initial_points)
     while True:
-        result = solve_natural_extension_1(y, low_prev, points, min_fun(points))
+        result = solve_natural_extension_1(y, low_prev, points, min_fun)
         yield result
         if result.delta_tilde < tolerance:
             return

@@ -1,8 +1,7 @@
-import functools
 import logging
 import math
 import pickle
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -369,7 +368,7 @@ def get_osc_lin_prog(t: float, num: int, min_fun: MinFun) -> NaturalExtensionRes
 
 
 def get_osc_semi_lin_prog(
-    t: float, error: float, min_fun: Callable[[Sequence[npt.NDArray]], MinFun]
+    t: float, error: float, min_fun: MinFun
 ) -> Sequence[NaturalExtensionResult]:
     logging.info("get_osc_semi_lin_prog %s %s", t, error)
     points = [np.array([0.5 * (x1_lp + x1_up), 0.5 * (x2_lp + x2_up)])]
@@ -377,15 +376,8 @@ def get_osc_semi_lin_prog(
     return list(solve_natural_extension_2(y, osc_low_prev, points, min_fun, error))
 
 
-def osc_min_fun(points: Sequence[npt.NDArray], min_fun: MinFun) -> MinFun:
-    def _(fun: Callable[[npt.NDArray], float]) -> tuple[float, npt.NDArray]:
-        return min_fun(fun)
-
-    return _
-
-
 def load_simulation(
-    min_grid: MinFun, tag: str, slow=True
+    min_fun: MinFun, tag: str, slow=True
 ) -> Mapping[float, SimulationResult]:
     simulation_file = Path(f"simulation-{tag}.pickle")
     if simulation_file.exists():
@@ -393,13 +385,10 @@ def load_simulation(
             return pickle.load(rfile)
     nums = [10, 50, 250] if slow else [10]
     errors = [1e-2, 1e-4, 1e-6] if slow else [1e-6]
-    min_semi: Callable[[Sequence[npt.NDArray]], MinFun] = functools.partial(
-        osc_min_fun, min_fun=min_grid
-    )
     simulation: Mapping[float, SimulationResult] = {
         t: SimulationResult(
-            grid={num: get_osc_lin_prog(t, num, min_grid) for num in nums},
-            semi={error: get_osc_semi_lin_prog(t, error, min_semi) for error in errors},
+            grid={num: get_osc_lin_prog(t, num, min_fun) for num in nums},
+            semi={error: get_osc_semi_lin_prog(t, error, min_fun) for error in errors},
         )
         for t in np.linspace(0, 2, 201 if slow else 11)
     }
@@ -445,7 +434,7 @@ if __name__ == "__main__":
     plot_oscillator(t=1, num=300, cmap="plasma", tag="1_0")
     plot_oscillator(t=2, num=300, cmap="plasma", tag="2_0")
     _simulations: dict[str, Mapping[float, SimulationResult]] = {}
-    for _tag, _min_grid in [
+    for _tag, _min_fun in [
         ("brute3", min_fun_brute(osc_bounds, ns=3)),
         ("brute20", min_fun_brute(osc_bounds, ns=20)),
         ("brute100", min_fun_brute(osc_bounds, ns=100)),
@@ -455,7 +444,7 @@ if __name__ == "__main__":
         ("direct", min_fun_direct(osc_bounds)),
     ]:
         logging.info("simulating %s", _tag)
-        _simulation = load_simulation(min_grid=_min_grid, tag=_tag)
+        _simulation = load_simulation(min_fun=_min_fun, tag=_tag)
         _simulations[_tag] = _simulation
     main_plot_simulations(_simulations)
     logging.info("plotting alpha and lambda bounds")
