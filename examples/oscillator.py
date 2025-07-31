@@ -22,10 +22,6 @@ from lowprev_lsip.low_prev import (
     solve_natural_extension_1,
     solve_natural_extension_2,
 )
-from lowprev_lsip.modulus import (
-    lipschitz_constant,
-    modulus_of_continuity,
-)
 from lowprev_lsip.optimize import (
     MinFun,
     min_fun_brute,
@@ -116,40 +112,6 @@ def plot_oscillator(t: float, num: int, cmap: str, tag: str) -> None:
     plt.tight_layout()
     plt.savefig(f"plot-oscillator-{tag}.png")
     plt.close()
-
-
-@pytest.mark.parametrize(
-    "t,z,expected",
-    [
-        (1.8, 0.1, 1.07),
-        (2, 0.15, 1.42),
-        (2.2, 0.2, 1.90),
-    ],
-)
-def test_modulus_of_continuity(t: float, z: float, expected: float) -> None:
-    mod2 = modulus_of_continuity(osc_y(t), osc_bounds, z, min_fun_brute, min_fun_brute)
-    assert mod2 == pytest.approx(expected, abs=0.01)
-
-
-def plot_for_modulus(t: float, zs: npt.NDArray) -> None:
-    mods = [
-        modulus_of_continuity(
-            osc_y(t),
-            osc_bounds,
-            z,
-            min_fun_brute,
-            functools.partial(min_fun_brute, ns=2),
-        )
-        for z in zs
-    ]
-    lip = lipschitz_constant(osc_y_grad(t), min_fun_brute(osc_bounds))
-    lips = [lip * z for z in zs]
-    plt.ylim(0, 2.1)
-    plt.plot(zs, mods, "C0", linestyle="-", label=r"$\xi_{f_t(X_1,X_2)}(z)$")
-    plt.plot(zs, lips, "C1", linestyle="--", label=r"$z M_{f_t(X_1,X_2)}$")
-    plt.legend()
-    plt.title(f"Modulus of continuity of $f_t(X_1,X_2)$ for $t={t}$")
-    plt.show()
 
 
 @dataclass
@@ -498,5 +460,3 @@ if __name__ == "__main__":
     main_plot_simulations(_simulations)
     logging.info("plotting alpha and lambda bounds")
     plot_alpha_bound(simulation=_simulations["brute100"], error=1e-6)
-    # plot_for_modulus(t=2, zs=np.linspace(0, 0.1, 10))
-    # plot_for_modulus(t=5, zs=np.linspace(0, 0.1, 30))
